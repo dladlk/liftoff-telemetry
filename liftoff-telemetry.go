@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"os"
 	"time"
@@ -26,6 +27,13 @@ type Datagram struct {
 	MotorRPM  []float32  `desc:"rpm per each motor"`
 }
 
+func (d Datagram) DistanceFrom(firstEvent *Datagram) float64 {
+	a := firstEvent.Position
+	b := d.Position
+
+	return math.Sqrt(math.Pow(float64(a[0]-b[0]), 2) + math.Pow(float64(a[2]-b[2]), 2))
+}
+
 func (d *Datagram) ZeroPosition() bool {
 	return d.Position[0] == 0 && d.Position[1] == 0 && d.Position[2] == 0
 }
@@ -36,12 +44,14 @@ type Session struct {
 	DurationSeconds int
 	Events          int32
 	Attempt         int
+	MaxDistance     float64
 }
 
 func (this *Session) Report() {
 	this.End = time.Now()
-	this.DurationSeconds = int(this.End.Sub(this.Start).Seconds())
-	log.Printf("Finished attempt %d after %d seconds and %d events", this.Attempt, this.DurationSeconds, this.Events)
+	duration := this.End.Sub(this.Start)
+	this.DurationSeconds = int(duration.Seconds())
+	log.Printf("Finished attempt %d after %d seconds (%v) and %d events, max distance %v", this.Attempt, this.DurationSeconds, duration, this.Events, this.MaxDistance)
 }
 
 func main() {
@@ -87,6 +97,7 @@ func main() {
 	curSession := Session{Start: time.Now(), Attempt: 1}
 	defer curSession.Report()
 	curSessionReported := false
+	var firstEvent *Datagram = nil
 
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
@@ -148,6 +159,15 @@ func main() {
 				log.Fatalf("Failed to read MotorRPM as float[%d]: %s\n", cur.Motors, err)
 			}
 
+			if firstEvent == nil {
+				firstEvent = &cur
+			} else {
+				distance := cur.DistanceFrom(firstEvent)
+				if distance > curSession.MaxDistance {
+					curSession.MaxDistance = distance
+				}
+			}
+
 			if prev != nil {
 				if prev.Timestamp > cur.Timestamp ||
 					//	When race is finished, zero position is constantly sent
@@ -155,10 +175,6 @@ func main() {
 					curSession.Report()
 					curSessionReported = true
 					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt + 1}
-				} else {
-					if curSession.Events%1000 == 0 {
-						log.Printf("Received %v events in session #%v", curSession.Events, curSession.Attempt)
-					}
 				}
 			}
 
