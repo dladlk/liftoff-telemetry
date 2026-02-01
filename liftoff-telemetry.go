@@ -51,7 +51,7 @@ func (this *Session) Report() {
 	this.End = time.Now()
 	duration := this.End.Sub(this.Start)
 	this.DurationSeconds = int(duration.Seconds())
-	log.Printf("Finished attempt %d after %d seconds (%v) and %d events, max distance %v", this.Attempt, this.DurationSeconds, duration, this.Events, this.MaxDistance)
+	log.Printf("Done attempt %d: %d seconds (%v), %d events, max distance from first event: %v", this.Attempt, this.DurationSeconds, duration, this.Events, this.MaxDistance)
 }
 
 func main() {
@@ -60,7 +60,7 @@ func main() {
 	const logEachNth = 100
 
 	log.SetPrefix("")
-	log.SetFlags(log.Ltime)
+	log.SetFlags(log.Ltime | log.Ldate)
 
 	if logToFile {
 		logFile, err := os.OpenFile(os.Args[0]+".log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
@@ -175,6 +175,7 @@ func main() {
 					curSession.Report()
 					curSessionReported = true
 					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt + 1}
+					firstEvent = &cur
 				}
 			}
 
