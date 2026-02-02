@@ -19,7 +19,7 @@ type Datagram struct {
 	Timestamp float32    `desc:"seconds"`
 	Position  [3]float32 `desc:"3d coordinate, X, Y, Z"`
 	Attitude  [4]float32 `desc:"X, Y, Z, W"`
-	Velocity  [3]float32 `desc:"X, Y, Z (world space, https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )"`
+	Velocity  [3]float32 `desc:"meters/second, X, Y, Z (world space, https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )"`
 	Gyro      [3]float32 `desc:"angular velocity rates - pitch, roll, yaw in degrees/second"`
 	Input     [4]float32 `desc:"throttle, yaw, pitch, roll"`
 	Battery   [2]float32 `desc:"remaining voltage and charge percentage"`
@@ -45,13 +45,15 @@ type Session struct {
 	Events          int32
 	Attempt         int
 	MaxDistance     float64
+	MaxVelocity     float32
+	TripDistance    float64
 }
 
 func (this *Session) Report() {
 	this.End = time.Now()
 	duration := this.End.Sub(this.Start)
 	this.DurationSeconds = int(duration.Seconds())
-	log.Printf("Done attempt %d: %d seconds (%v), %d events, max distance from first event position: %v", this.Attempt, this.DurationSeconds, duration, this.Events, int(this.MaxDistance))
+	log.Printf("Done attempt %d: %d seconds (%v), %d events, max distance from first event position: %v, total trip %v, max velocity: %v m/s", this.Attempt, this.DurationSeconds, duration, this.Events, int(this.MaxDistance), int(this.TripDistance), int(this.MaxVelocity))
 }
 
 func main() {
@@ -170,7 +172,15 @@ func main() {
 				}
 			}
 
+			for i := range cur.Velocity {
+				if curSession.MaxVelocity < cur.Velocity[i] {
+					curSession.MaxVelocity = cur.Velocity[i]
+				}
+			}
+
 			if prev != nil {
+				curSession.TripDistance += cur.DistanceFrom(prev)
+
 				if prev.Timestamp > cur.Timestamp ||
 					//	When race is finished, zero position is constantly sent
 					(prev.ZeroPosition() && cur.ZeroPosition()) {
