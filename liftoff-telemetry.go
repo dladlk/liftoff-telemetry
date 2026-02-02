@@ -51,7 +51,7 @@ func (this *Session) Report() {
 	this.End = time.Now()
 	duration := this.End.Sub(this.Start)
 	this.DurationSeconds = int(duration.Seconds())
-	log.Printf("Done attempt %d: %d seconds (%v), %d events, max distance from first event: %v", this.Attempt, this.DurationSeconds, duration, this.Events, this.MaxDistance)
+	log.Printf("Done attempt %d: %d seconds (%v), %d events, max distance from first event position: %v", this.Attempt, this.DurationSeconds, duration, this.Events, int(this.MaxDistance))
 }
 
 func main() {
