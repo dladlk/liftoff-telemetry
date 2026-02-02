@@ -133,6 +133,8 @@ func main() {
 			} else {
 				if curSessionReported {
 					curSessionReported = false
+					// Discard previous session data - it was an empty, fake session after race finished until new started
+					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt}
 				}
 			}
 
