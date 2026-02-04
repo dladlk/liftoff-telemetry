@@ -9,6 +9,8 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -74,6 +76,20 @@ func main() {
 		log.SetOutput(multiWriter)
 	}
 
+	var curSession Session
+
+	// Create a channel to receive OS signals
+	signalChan := make(chan os.Signal, 1)
+	// Notify the channel of SIGINT (Ctrl+C) and SIGTERM signals
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start a goroutine to handle the signal
+	go func() {
+		<-signalChan // Block until a signal is received
+		curSession.Report()
+		os.Exit(0) // Exit gracefully after the command finishes
+	}()
+
 	address, err := net.ResolveUDPAddr("udp", ":9001")
 	if err != nil {
 		log.Fatal("Error resolving UDP address:", err)
@@ -96,7 +112,7 @@ func main() {
 	buffer := make([]byte, 1024)
 	var prev *Datagram
 
-	curSession := Session{Start: time.Now(), Attempt: 1}
+	curSession = Session{Start: time.Now(), Attempt: 1}
 	defer curSession.Report()
 	curSessionReported := false
 	var firstEvent *Datagram = nil
@@ -181,6 +197,7 @@ func main() {
 			if prev != nil {
 				curSession.TripDistance += cur.DistanceFrom(prev)
 
+				// When we restart race - get timestamp less than before
 				if prev.Timestamp > cur.Timestamp ||
 					//	When race is finished, zero position is constantly sent
 					(prev.ZeroPosition() && cur.ZeroPosition()) {
