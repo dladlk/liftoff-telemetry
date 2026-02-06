@@ -46,6 +46,8 @@ type Session struct {
 	DurationSeconds int
 	Events          int32
 	Attempt         int
+	Circle          int
+	LastCircleStart time.Time
 	MaxDistance     float64
 	MaxVelocity     float32
 	TripDistance    float64
@@ -117,6 +119,7 @@ func main() {
 	defer curSession.Report()
 	curSessionReported := false
 	var firstEvent *Datagram = nil
+	var curCircleMaxDistance float64
 
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
@@ -153,7 +156,7 @@ func main() {
 				if curSessionReported {
 					curSessionReported = false
 					// Discard previous session data - it was an empty, fake session after race finished until new started
-					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt}
+					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt, Circle: curSession.Circle}
 				}
 			}
 
@@ -187,6 +190,24 @@ func main() {
 				if distance > curSession.MaxDistance {
 					curSession.MaxDistance = distance
 				}
+
+				if distance > curCircleMaxDistance {
+					curCircleMaxDistance = distance
+				}
+				// Let's say that we did a circle if distance from start point is less than 2 AND current cicle max distance is bigger then current 50 times
+				if distance < 2 && (curCircleMaxDistance+0.1)/(distance+0.1) > 50 {
+					curSession.Circle++
+					curCircleFinish := time.Now()
+					curCircleStart := curSession.LastCircleStart
+					if curCircleStart.IsZero() {
+						curCircleStart = curSession.Start
+					}
+					circleDuration := curCircleFinish.Sub(curCircleStart)
+					log.Printf("Done circle %v in %v, max distance %.2f", curSession.Circle, circleDuration.Round(time.Second), curCircleMaxDistance)
+
+					curSession.LastCircleStart = curCircleFinish
+					curCircleMaxDistance = 0
+				}
 			}
 
 			for i := range cur.Velocity {
@@ -204,7 +225,7 @@ func main() {
 					(prev.ZeroPosition() && cur.ZeroPosition()) {
 					curSession.Report()
 					curSessionReported = true
-					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt + 1}
+					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt + 1, Circle: curSession.Circle}
 					firstEvent = &cur
 				}
 			}
