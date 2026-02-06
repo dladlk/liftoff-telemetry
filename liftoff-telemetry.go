@@ -29,6 +29,8 @@ type Datagram struct {
 	MotorRPM  []float32  `desc:"rpm per each motor"`
 }
 
+const CIRCLE_DISTANCE_TO_START = 3
+
 func (d Datagram) DistanceFrom(firstEvent *Datagram) float64 {
 	a := firstEvent.Position
 	b := d.Position
@@ -40,25 +42,24 @@ func (d *Datagram) ZeroPosition() bool {
 	return d.Position[0] == 0 && d.Position[1] == 0 && d.Position[2] == 0
 }
 
-type Session struct {
+type Trip struct {
+	Type            string
 	Start           time.Time
 	End             time.Time
 	DurationSeconds int
 	Events          int32
-	Attempt         int
-	Circle          int
-	LastCircleStart time.Time
+	Index           int
 	MaxDistance     float64
 	MaxVelocity     float32
 	TripDistance    float64
 }
 
-func (this *Session) Report() {
+func (this *Trip) Report() {
 	this.End = time.Now()
 	duration := this.End.Sub(this.Start)
 	this.DurationSeconds = int(duration.Seconds())
-	log.Printf("Session #%d: %v (%ds), %d events, total trip %.1f, max velocity: %.2f m/s, max from start: %.1f",
-		this.Attempt, duration.Round(time.Second), this.DurationSeconds, this.Events, this.TripDistance, this.MaxVelocity, this.MaxDistance)
+	log.Printf("%s #%d: %v (%ds), %d events, total %.1f, max velocity: %.2f m/s, max from start: %.1f",
+		this.Type, this.Index, duration.Round(time.Second), this.DurationSeconds, this.Events, this.TripDistance, this.MaxVelocity, this.MaxDistance)
 }
 
 func main() {
@@ -79,7 +80,8 @@ func main() {
 		log.SetOutput(multiWriter)
 	}
 
-	var curSession Session
+	var curSession Trip
+	var curCircle Trip
 
 	// Create a channel to receive OS signals
 	signalChan := make(chan os.Signal, 1)
@@ -115,11 +117,11 @@ func main() {
 	buffer := make([]byte, 1024)
 	var prev *Datagram
 
-	curSession = Session{Start: time.Now(), Attempt: 1}
+	curSession = Trip{Type: "Race", Start: time.Now(), Index: 1}
+	curCircle = Trip{Type: "Circle", Start: time.Now(), Index: 1}
 	defer curSession.Report()
 	curSessionReported := false
 	var firstEvent *Datagram = nil
-	var curCircleMaxDistance float64
 
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
@@ -133,6 +135,7 @@ func main() {
 		if n == 97 {
 			buf := bytes.NewReader(buffer[:n])
 			curSession.Events++
+			curCircle.Events++
 
 			if logEachNth > 0 && (curSession.Events-1)%logEachNth != 0 {
 				continue
@@ -156,7 +159,7 @@ func main() {
 				if curSessionReported {
 					curSessionReported = false
 					// Discard previous session data - it was an empty, fake session after race finished until new started
-					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt, Circle: curSession.Circle}
+					curSession = Trip{Type: curSession.Type, Start: time.Now(), Index: curSession.Index}
 				}
 			}
 
@@ -183,30 +186,18 @@ func main() {
 				log.Fatalf("Failed to read MotorRPM as float[%d]: %s\n", cur.Motors, err)
 			}
 
+			var distance float64
+
 			if firstEvent == nil {
 				firstEvent = &cur
 			} else {
-				distance := cur.DistanceFrom(firstEvent)
+				distance = cur.DistanceFrom(firstEvent)
 				if distance > curSession.MaxDistance {
 					curSession.MaxDistance = distance
 				}
 
-				if distance > curCircleMaxDistance {
-					curCircleMaxDistance = distance
-				}
-				// Let's say that we did a circle if distance from start point is less than 2 AND current cicle max distance is bigger then current 50 times
-				if distance < 2 && (curCircleMaxDistance+0.1)/(distance+0.1) > 50 {
-					curSession.Circle++
-					curCircleFinish := time.Now()
-					curCircleStart := curSession.LastCircleStart
-					if curCircleStart.IsZero() {
-						curCircleStart = curSession.Start
-					}
-					circleDuration := curCircleFinish.Sub(curCircleStart)
-					log.Printf("Done circle %v in %v, max distance %.2f", curSession.Circle, circleDuration.Round(time.Second), curCircleMaxDistance)
-
-					curSession.LastCircleStart = curCircleFinish
-					curCircleMaxDistance = 0
+				if distance > curCircle.MaxDistance {
+					curCircle.MaxDistance = distance
 				}
 			}
 
@@ -214,10 +205,14 @@ func main() {
 				if curSession.MaxVelocity < cur.Velocity[i] {
 					curSession.MaxVelocity = cur.Velocity[i]
 				}
+				if curCircle.MaxVelocity < cur.Velocity[i] {
+					curCircle.MaxVelocity = cur.Velocity[i]
+				}
 			}
 
 			if prev != nil {
 				curSession.TripDistance += cur.DistanceFrom(prev)
+				curCircle.TripDistance += cur.DistanceFrom(prev)
 
 				// When we restart race - get timestamp less than before
 				if prev.Timestamp > cur.Timestamp ||
@@ -225,12 +220,22 @@ func main() {
 					(prev.ZeroPosition() && cur.ZeroPosition()) {
 					curSession.Report()
 					curSessionReported = true
-					curSession = Session{Start: time.Now(), Attempt: curSession.Attempt + 1, Circle: curSession.Circle}
+					curSession = Trip{Type: "Race", Start: time.Now(), Index: curSession.Index + 1}
+					curCircle = Trip{Type: "Circle", Start: time.Now(), Index: 1}
 					firstEvent = &cur
+				}
+
+				// Let's say that we did a circle if distance from start point is less than some value AND current cicle max distance is bigger then current 50 times
+				if distance < CIRCLE_DISTANCE_TO_START && (curCircle.TripDistance/curCircle.MaxDistance+0.1) > 2 {
+					curCircle.End = time.Now()
+					curCircle.DurationSeconds = int(curCircle.End.Sub(curCircle.Start).Round(time.Second))
+					curCircle.Report()
+
+					curCircle = Trip{Type: curCircle.Type, Start: time.Now(), Index: curCircle.Index + 1}
 				}
 			}
 
-			fmt.Fprintf(logFile, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Attempt, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
+			fmt.Fprintf(logFile, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Index, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
 
 			if debug {
 				log.Printf("%+v", cur)
