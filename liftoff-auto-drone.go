@@ -104,20 +104,16 @@ func main() {
 		}
 
 		if planMode {
-			var plan Plan
-			if planIndex == 0 {
-				plan = Plan{}
-				plan.Name = "Slow jump forward"
-				plan.Add(0, -8, 0, 0, 2000)
-				plan.Add(0, -2, 0, 0, 3000)
-				plan.Add(0, -2, 0, 2, 500)
-				plan.Add(0, -2, 0, -2, 500)
-				plan.Add(0, -5, 0, 0, 3000)
-				plan.Add(0, -8, 0, 0, 5000)
+			var plan *Plan
+			plan, err := ReadPlan(fmt.Sprintf("plan_%d.txt", planIndex))
+			if err != nil {
+				fmt.Printf("\nFailed to read plan %d: %v", planIndex, err)
+				return false, nil
 			}
+
 			fmt.Printf("\nPlan %d '%s' Start                              \r\n", planIndex, plan.Name)
-			// Sleep 5 second to switch to Liftoff
-			p(5000)
+			// Sleep 3 second to switch to Liftoff
+			p(3000)
 			for _, c := range plan.List {
 				u(c.Update[0], c.Update[1], c.Update[2], c.Update[3])
 				p(c.Duration)
