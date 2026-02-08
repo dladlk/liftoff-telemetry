@@ -65,14 +65,18 @@ func (this *Trip) Report() {
 }
 
 func main() {
-	const debug = false
-	const logToFile = true
-	const logEachNth = 100
-
 	log.SetPrefix("")
 	log.SetFlags(log.Ltime | log.Ldate)
 
-	if logToFile {
+	config, err := LoadConfig("liftoff-telemetry.toml.ini")
+	if err != nil {
+		log.Fatalf("Failed to read app config file liftoff-telemetry.toml.ini")
+	}
+	log.Printf("Liftoff Telemetry Listener config: %+v", config)
+
+	debug := config.Log.Debug
+
+	if config.Log.LogToFile {
 		logFile, err := os.OpenFile(os.Args[0]+".log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 		if err != nil {
 			log.Fatalf("error opening log file: %v", err)
@@ -101,7 +105,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read telemetry configuration: %v", err)
 	}
-	fmt.Printf("Liftoff Telemetry Config: %+v \n", lot_config)
+	log.Printf("Found Liftoff Telemetry Config: %+v \n", lot_config)
 
 	address, err := net.ResolveUDPAddr("udp", ":9001")
 	if err != nil {
@@ -145,7 +149,7 @@ func main() {
 			curSession.Events++
 			curCircle.Events++
 
-			if logEachNth > 0 && (curSession.Events-1)%logEachNth != 0 {
+			if config.General.SaveEachNth > 0 && (curSession.Events-1)%config.General.SaveEachNth != 0 {
 				continue
 			}
 

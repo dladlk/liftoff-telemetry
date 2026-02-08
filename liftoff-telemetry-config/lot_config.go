@@ -24,7 +24,7 @@ func ReadConfig() (*LiftoffTelemetryConfig, error) {
 		return nil, err
 	}
 	defer file.Close()
-	bytes, _ := io.ReadAll(file)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
