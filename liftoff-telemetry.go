@@ -12,6 +12,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	lot_config "github.com/dladlk/liftoff-telemetry/liftoff-telemetry-config"
 )
 
 // UDP Server to get Litfoff Telemtry
@@ -94,6 +96,12 @@ func main() {
 		curSession.Report()
 		os.Exit(0) // Exit gracefully after the command finishes
 	}()
+
+	lot_config, err := lot_config.ReadConfig()
+	if err != nil {
+		log.Fatalf("Failed to read telemetry configuration: %v", err)
+	}
+	fmt.Printf("Liftoff Telemetry Config: %+v \n", lot_config)
 
 	address, err := net.ResolveUDPAddr("udp", ":9001")
 	if err != nil {
