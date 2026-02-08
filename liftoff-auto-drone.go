@@ -28,6 +28,16 @@ func (this *Joystick) Reset() {
 	this.y = 0
 }
 
+// Declare a custom type for the enum
+type RunMode int
+
+// Define the enum values using iota
+const (
+	Keyboard RunMode = iota
+	PlanMode
+	TrackMode
+)
+
 const posPerDirection = 8
 const convertRatio int16 = math.MaxInt16 / posPerDirection
 
@@ -51,8 +61,8 @@ func main() {
 			return true, nil
 		}
 
-		planMode := false
-		planIndex := 0
+		runMode := Keyboard
+		modeIndex := 0
 
 		switch key.Code {
 		case keys.Up:
@@ -95,31 +105,53 @@ func main() {
 			case "q":
 				return true, nil
 			default:
-				if key.String() >= "0" && key.String() <= "9" {
-					planMode = true
-					planIndex, _ = strconv.Atoi(key.String())
+				if key.String() >= "0" && key.String() < "5" {
+					runMode = PlanMode
+					modeIndex, _ = strconv.Atoi(key.String())
+				}
+				if key.String() >= "5" && key.String() <= "9" {
+					runMode = TrackMode
+					modeIndex, _ = strconv.Atoi(key.String())
 				}
 			}
 
 		}
 
-		if planMode {
+		switch runMode {
+		case PlanMode:
 			var plan *Plan
-			plan, err := ReadPlan(fmt.Sprintf("plan_%d.txt", planIndex))
+			plan, err := ReadPlan(fmt.Sprintf("plan_%d.txt", modeIndex))
 			if err != nil {
-				fmt.Printf("\nFailed to read plan %d: %v", planIndex, err)
+				fmt.Printf("\nFailed to read plan %d: %v", modeIndex, err)
 				return false, nil
 			}
 
-			fmt.Printf("\nPlan %d '%s' Start                              \r\n", planIndex, plan.Name)
+			fmt.Printf("\nPlan %d '%s' Start                              \r\n", modeIndex, plan.Name)
 			// Sleep 3 second to switch to Liftoff
 			p(3000)
 			for _, c := range plan.List {
 				u(c.Update[0], c.Update[1], c.Update[2], c.Update[3])
 				p(c.Duration)
 			}
-			fmt.Printf("Plan %d Done                              \r\n", planIndex)
-		} else {
+			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
+		case TrackMode:
+			var telemetry *Telemetry
+			telemetry, err := ReadTelemetry(fmt.Sprintf("telemetry_%d.txt", modeIndex))
+			if err != nil {
+				fmt.Printf("\nFailed to read track %d: %v", modeIndex, err)
+				return false, nil
+			}
+
+			fmt.Printf("\nTrack %d '%s' Start                              \r\n", modeIndex, telemetry.Name)
+			// Sleep 3 second to switch to Liftoff
+			p(3000)
+			for _, c := range telemetry.Records {
+				fmt.Printf("\r\n %+v", c)
+				drone.UpdateByTelemetryRecord(c)
+				p(1000)
+			}
+			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
+		default:
 			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
 			drone.Update(left, right)
 		}
