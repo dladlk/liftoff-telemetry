@@ -70,7 +70,7 @@ func main() {
 
 	config, err := LoadConfig("liftoff-telemetry.toml.ini")
 	if err != nil {
-		log.Fatalf("Failed to read app config file liftoff-telemetry.toml.ini")
+		log.Fatalf("Failed to read app config file liftoff-telemetry.toml.ini: %v", err)
 	}
 	log.Printf("Liftoff Telemetry Listener config: %+v", config)
 
@@ -101,11 +101,11 @@ func main() {
 		os.Exit(0) // Exit gracefully after the command finishes
 	}()
 
-	lot_config, err := lot_config.ReadConfig()
+	lotConfig, err := lot_config.ReadConfig()
 	if err != nil {
 		log.Fatalf("Failed to read telemetry configuration: %v", err)
 	}
-	log.Printf("Found Liftoff Telemetry Config: %+v \n", lot_config)
+	log.Printf("Found Liftoff Telemetry Config: %+v \n", lotConfig)
 
 	address, err := net.ResolveUDPAddr("udp", ":9001")
 	if err != nil {
@@ -119,12 +119,20 @@ func main() {
 
 	log.Printf("Liftoff Telemetry UDP server listening on %s\n", conn.LocalAddr().String())
 
-	writeLogToFile := fmt.Sprintf("liftoff_telemetry_%s", time.Now().Format("20060102_150405")+".csv")
+	binFormat := config.General.Format == "bin"
+
+	writeLogToFileExtension := ".csv"
+	if binFormat {
+		writeLogToFileExtension = ".bin"
+	}
+	writeLogToFile := fmt.Sprintf("liftoff_telemetry_%s", time.Now().Format("20060102_150405")+writeLogToFileExtension)
 	logFile, err := os.OpenFile(writeLogToFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatalf("Failed to create log file %s: %v", writeLogToFile, err)
 	}
 	defer logFile.Close()
+	writeHeader(lotConfig, logFile)
+	binWriteBuf := new(bytes.Buffer)
 
 	buffer := make([]byte, 1024)
 	var prev *Datagram
@@ -144,7 +152,7 @@ func main() {
 		if debug {
 			log.Printf("Received %d bytes from %s\n", n, clientAddr)
 		}
-		if n == 97 {
+		if n > 0 {
 			buf := bytes.NewReader(buffer[:n])
 			curSession.Events++
 			curCircle.Events++
@@ -155,47 +163,58 @@ func main() {
 
 			cur := Datagram{}
 			order := binary.LittleEndian
-			if err := binary.Read(buf, order, &cur.Timestamp); err != nil {
-				log.Fatalf("Failed to read Timestamp as float: %s\n", err)
-			}
-			if err := binary.Read(buf, order, &cur.Position); err != nil {
-				log.Fatalf("Failed to read Position as float[3]: %s\n", err)
-			}
 
-			if cur.ZeroPosition() {
-				if curSessionReported {
-					// Ignore telemetry with zero position after reporting - wait for restart
-					continue
+			for _, dataType := range lotConfig.StreamFormats {
+				switch dataType {
+				case lot_config.Timestamp:
+					if err := binary.Read(buf, order, &cur.Timestamp); err != nil {
+						log.Fatalf("Failed to read Timestamp as float: %s\n", err)
+					}
+				case lot_config.Position:
+					if err := binary.Read(buf, order, &cur.Position); err != nil {
+						log.Fatalf("Failed to read Position as float[3]: %s\n", err)
+					}
+					if cur.ZeroPosition() {
+						if curSessionReported {
+							// Ignore telemetry with zero position after reporting - wait for restart
+							continue
+						}
+					} else {
+						if curSessionReported {
+							curSessionReported = false
+							// Discard previous session data - it was an empty, fake session after race finished until new started
+							curSession = Trip{Type: curSession.Type, Start: time.Now(), Index: curSession.Index}
+						}
+					}
+				case lot_config.Attitude:
+					if err := binary.Read(buf, order, &cur.Attitude); err != nil {
+						log.Fatalf("Failed to read Attitude as float[4]: %s\n", err)
+					}
+				case lot_config.Velocity:
+					if err := binary.Read(buf, order, &cur.Velocity); err != nil {
+						log.Fatalf("Failed to read Velocity as float[3]: %s\n", err)
+					}
+				case lot_config.Gyro:
+					if err := binary.Read(buf, order, &cur.Gyro); err != nil {
+						log.Fatalf("Failed to read Gyro as float[3]: %s\n", err)
+					}
+				case lot_config.Input:
+					if err := binary.Read(buf, order, &cur.Input); err != nil {
+						log.Fatalf("Failed to read Input as float[4]: %s\n", err)
+					}
+				case lot_config.Battery:
+					if err := binary.Read(buf, order, &cur.Battery); err != nil {
+						log.Fatalf("Failed to read Battery as float[2]: %s\n", err)
+					}
+				case lot_config.MotorRPM:
+					if err := binary.Read(buf, order, &cur.Motors); err != nil {
+						log.Fatalf("Failed to read Motors as byte: %s\n", err)
+					}
+					cur.MotorRPM = make([]float32, cur.Motors)
+					if err := binary.Read(buf, order, &cur.MotorRPM); err != nil {
+						log.Fatalf("Failed to read MotorRPM as float[%d]: %s\n", cur.Motors, err)
+					}
 				}
-			} else {
-				if curSessionReported {
-					curSessionReported = false
-					// Discard previous session data - it was an empty, fake session after race finished until new started
-					curSession = Trip{Type: curSession.Type, Start: time.Now(), Index: curSession.Index}
-				}
-			}
-
-			if err := binary.Read(buf, order, &cur.Attitude); err != nil {
-				log.Fatalf("Failed to read Attitude as float[4]: %s\n", err)
-			}
-			if err := binary.Read(buf, order, &cur.Velocity); err != nil {
-				log.Fatalf("Failed to read Velocity as float[3]: %s\n", err)
-			}
-			if err := binary.Read(buf, order, &cur.Gyro); err != nil {
-				log.Fatalf("Failed to read Gyro as float[3]: %s\n", err)
-			}
-			if err := binary.Read(buf, order, &cur.Input); err != nil {
-				log.Fatalf("Failed to read Input as float[4]: %s\n", err)
-			}
-			if err := binary.Read(buf, order, &cur.Battery); err != nil {
-				log.Fatalf("Failed to read Battery as float[2]: %s\n", err)
-			}
-			if err := binary.Read(buf, order, &cur.Motors); err != nil {
-				log.Fatalf("Failed to read Motors as byte: %s\n", err)
-			}
-			cur.MotorRPM = make([]float32, cur.Motors)
-			if err := binary.Read(buf, order, &cur.MotorRPM); err != nil {
-				log.Fatalf("Failed to read MotorRPM as float[%d]: %s\n", cur.Motors, err)
 			}
 
 			var distance float64
@@ -203,33 +222,39 @@ func main() {
 			if firstEvent == nil {
 				firstEvent = &cur
 			} else {
-				distance = cur.DistanceFrom(firstEvent)
-				if distance > curSession.MaxDistance {
-					curSession.MaxDistance = distance
-				}
+				if lotConfig.HasPosition() {
+					distance = cur.DistanceFrom(firstEvent)
+					if distance > curSession.MaxDistance {
+						curSession.MaxDistance = distance
+					}
 
-				if distance > curCircle.MaxDistance {
-					curCircle.MaxDistance = distance
+					if distance > curCircle.MaxDistance {
+						curCircle.MaxDistance = distance
+					}
 				}
 			}
 
-			for i := range cur.Velocity {
-				if curSession.MaxVelocity < cur.Velocity[i] {
-					curSession.MaxVelocity = cur.Velocity[i]
-				}
-				if curCircle.MaxVelocity < cur.Velocity[i] {
-					curCircle.MaxVelocity = cur.Velocity[i]
+			if lotConfig.HasVelocity() {
+				for i := range cur.Velocity {
+					if curSession.MaxVelocity < cur.Velocity[i] {
+						curSession.MaxVelocity = cur.Velocity[i]
+					}
+					if curCircle.MaxVelocity < cur.Velocity[i] {
+						curCircle.MaxVelocity = cur.Velocity[i]
+					}
 				}
 			}
 
 			if prev != nil {
-				curSession.TripDistance += cur.DistanceFrom(prev)
-				curCircle.TripDistance += cur.DistanceFrom(prev)
+				if lotConfig.HasPosition() {
+					curSession.TripDistance += cur.DistanceFrom(prev)
+					curCircle.TripDistance += cur.DistanceFrom(prev)
+				}
 
 				// When we restart race - get timestamp less than before
 				if prev.Timestamp > cur.Timestamp ||
 					//	When race is finished, zero position is constantly sent
-					(prev.ZeroPosition() && cur.ZeroPosition()) {
+					(lotConfig.HasPosition() && prev.ZeroPosition() && cur.ZeroPosition()) {
 					curSession.Report()
 					curSessionReported = true
 					curSession = Trip{Type: "Race", Start: time.Now(), Index: curSession.Index + 1}
@@ -237,17 +262,45 @@ func main() {
 					firstEvent = &cur
 				}
 
-				// Let's say that we did a circle if distance from start point is less than some value AND current cicle max distance is bigger then current 50 times
-				if distance < CIRCLE_DISTANCE_TO_START && (curCircle.TripDistance/curCircle.MaxDistance+0.1) > 2 {
-					curCircle.End = time.Now()
-					curCircle.DurationSeconds = int(curCircle.End.Sub(curCircle.Start).Round(time.Second))
-					curCircle.Report()
+				if lotConfig.HasPosition() {
+					// Let's say that we did a circle if distance from start point is less than some value AND current cicle max distance is bigger then current 50 times
+					if distance < CIRCLE_DISTANCE_TO_START && curCircle.TripDistance > 100 && (curCircle.TripDistance/curCircle.MaxDistance+0.1) > 2 {
+						curCircle.End = time.Now()
+						curCircle.DurationSeconds = int(curCircle.End.Sub(curCircle.Start).Round(time.Second))
+						curCircle.Report()
 
-					curCircle = Trip{Type: curCircle.Type, Start: time.Now(), Index: curCircle.Index + 1}
+						curCircle = Trip{Type: curCircle.Type, Start: time.Now(), Index: curCircle.Index + 1}
+					}
 				}
 			}
 
-			fmt.Fprintf(logFile, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Index, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
+			if binFormat {
+				for _, f := range lotConfig.StreamFormats {
+					binWriteBuf.Reset()
+					switch f {
+					case lot_config.Timestamp:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Timestamp)
+					case lot_config.Position:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Position)
+					case lot_config.Attitude:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Attitude)
+					case lot_config.Velocity:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Velocity)
+					case lot_config.Gyro:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Gyro)
+					case lot_config.Input:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Input)
+					case lot_config.Battery:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Battery)
+					case lot_config.MotorRPM:
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.Motors)
+						binary.Write(binWriteBuf, binary.LittleEndian, cur.MotorRPM)
+					}
+					logFile.Write(binWriteBuf.Bytes())
+				}
+			} else {
+				fmt.Fprintf(logFile, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Index, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
+			}
 
 			if debug {
 				log.Printf("%+v", cur)
@@ -255,4 +308,16 @@ func main() {
 			prev = &cur
 		}
 	}
+}
+
+func writeHeader(lotConfig *lot_config.LiftoffTelemetryConfig, logFile *os.File) {
+	var headerBuffer bytes.Buffer // Declare a bytes.Buffer
+	for i, name := range lotConfig.StreamFormatNames {
+		if i > 0 {
+			headerBuffer.WriteString(",")
+		}
+		headerBuffer.WriteString(name)
+	}
+	headerBuffer.WriteString("\n")
+	logFile.Write(headerBuffer.Bytes())
 }
