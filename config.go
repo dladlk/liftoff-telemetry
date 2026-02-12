@@ -8,8 +8,9 @@ import (
 
 type Config struct {
 	General struct {
-		Save        bool  `toml:"save"`
-		SaveEachNth int32 `toml:"saveEachNth"`
+		Save        bool   `toml:"save"`
+		SaveEachNth int32  `toml:"saveEachNth"`
+		Format      string `toml:"format"`
 	} `toml:"general"`
 	Log struct {
 		LogToFile bool `toml:"logToFile"`
@@ -23,6 +24,7 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	c := Config{}
+	c.General.Format = "csv"
 
 	if err := toml.Unmarshal(b, &c); err != nil {
 		return nil, err
