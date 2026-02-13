@@ -62,6 +62,8 @@ func main() {
 	}
 	drone.Init()
 
+	trackRunStopChannel := make(chan bool)
+
 	fmt.Println("Left joystick: WSAD, Right joystick: ↑↓←→, Q quit, R reset")
 	keyboard.Listen(func(key keys.Key) (stop bool, err error) {
 		if key.Code == keys.Null {
@@ -110,6 +112,8 @@ func main() {
 				if left.x < posPerDirection {
 					left.x += step
 				}
+			case "t": // Terminate track running
+				trackRunStopChannel <- true
 			case "r": // RESET
 				left.Reset()
 				right.Reset()
@@ -167,19 +171,32 @@ func main() {
 			}
 			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
 		case TrackStreamMode:
-			fmt.Printf("Sleep to switch to main window")
+			fmt.Printf("\rYou have 3 seconds to switch to Liftoff window to process track. Press T to terminate running\r\n")
 			p(3000)
 			filepath := fmt.Sprintf("track_%d.bin", modeIndex)
-			track := Track{}
-			list, err := track.Open(filepath)
-			if err != nil {
-				fmt.Printf("\nFailed to read bin track %d: %v", modeIndex, err)
+			go func() (bool, error) {
+				track := Track{}
+				list, err := track.Open(filepath)
+				if err != nil {
+					fmt.Printf("Failed to read bin track %d: %v\n", modeIndex, err)
+					return false, err
+				}
+				for i, c := range list {
+					select {
+					case <-trackRunStopChannel:
+						fmt.Printf("\rTerminated on %d of %d - %.2f%%", i, len(list), float32(i+1)/float32(len(list))*100.0)
+						return false, nil
+					default:
+						drone.UpdateByInput(c.Input)
+						p(10)
+						if i%100 == 0 {
+							fmt.Printf("\rDone %d of %d - %.2f %%", i, len(list), float32(i+1)/float32(len(list))*100.0)
+						}
+					}
+				}
+				fmt.Printf("\rFinished\r\n")
 				return false, nil
-			}
-			for _, c := range list {
-				drone.UpdateByInput(c.Input)
-				p(10)
-			}
+			}()
 
 		default:
 			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
