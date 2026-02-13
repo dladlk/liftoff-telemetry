@@ -10,7 +10,7 @@ import (
 	"atomicgo.dev/keyboard/keys"
 )
 
-const noopDrone = true
+const noopDrone = false
 
 // Manual calibration:
 /*
@@ -166,7 +166,7 @@ func main() {
 			p(3000)
 			for _, c := range telemetry.Records {
 				fmt.Printf("\r\n %+v", c)
-				drone.UpdateByInput(c.Input)
+				drone.UpdateByInput(&c.Input)
 				p(100)
 			}
 			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
@@ -188,25 +188,25 @@ func main() {
 				}
 				progressPrint := func(prefix string, i int) string {
 					durationSec := float64(time.Since(startTime).Round(time.Millisecond).Milliseconds()) / 1000.0
-					simulationDurationSec := track.list[i].Timestamp - track.minTs
+					simulationDurationSec := track.List[i].Timestamp - track.minTs
 					diff := durationSec - float64(simulationDurationSec)
-					progressPercent := float32(i+1) / float32(len(track.list)) * 100.0
-					return fmt.Sprintf("%s %d of %d - %.2f%% in %.2f s, track dur %.2f s, diff %.2f s", prefix, i, len(track.list), progressPercent, durationSec, simulationDurationSec, diff)
+					progressPercent := float32(i+1) / float32(len(track.List)) * 100.0
+					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s", prefix, i, len(track.List), progressPercent, durationSec, simulationDurationSec, diff)
 				}
-				for i, c := range track.list {
+				for i, c := range track.List {
 					select {
 					case <-trackRunStopChannel:
 						fmt.Printf("%s\r\n", progressPrint("\rTerminated on", i))
 						return false, nil
 					default:
-						drone.UpdateByInput(c.Input)
-						p(10)
+						drone.UpdateByInput(&c.Input)
+						p(9)
 						if i%100 == 0 {
 							fmt.Print(progressPrint("\rDone on", i))
 						}
 					}
 				}
-				fmt.Printf("%s\r\n", progressPrint("\rFinished", len(track.list)))
+				fmt.Printf("%s\r\n", progressPrint("\rFinished", len(track.List)-1))
 				return false, nil
 			}()
 

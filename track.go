@@ -58,7 +58,7 @@ func parseFormats(formatNames []string) []StreamDataType {
 type Track struct {
 	path   string
 	fields []StreamDataType
-	list   []Datagram
+	List   []Datagram
 	minTs  float32
 	maxTs  float32
 }
@@ -143,10 +143,10 @@ func (t *Track) Open(path string) error {
 		data := Datagram{}
 		readDatagram(buffer, n, t, &data)
 
-		t.list = append(t.list, data)
+		t.List = append(t.List, data)
 	}
-	t.minTs = t.list[0].Timestamp
-	t.maxTs = t.list[len(t.list)-1].Timestamp
+	t.minTs = t.List[0].Timestamp
+	t.maxTs = t.List[len(t.List)-1].Timestamp
 	fmt.Printf("Loaded %d blocks, min ts %.2f sec, max ts %.2f sec\n", blocks, t.minTs, t.maxTs)
 
 	return nil

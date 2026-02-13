@@ -10,7 +10,7 @@ import (
 type IDrone interface {
 	Init()
 	Update(lx int8, ly int8, rx int8, ry int8)
-	UpdateByInput(Input [4]float32)
+	UpdateByInput(Input *[4]float32)
 	UpdateLeftRight(left Joystick, right Joystick)
 	Close()
 }
@@ -22,11 +22,10 @@ type Drone struct {
 
 // Input     [4]float32 `desc:"throttle, yaw, pitch, roll"`
 // But update: yaw, throttle, roll, pitch
-func (t Drone) UpdateByInput(Input [4]float32) {
-	u := []int16{float32ToInt16(Input[1]), float32ToInt16(Input[0]), float32ToInt16(Input[3]), float32ToInt16(Input[2])}
+func (t Drone) UpdateByInput(Input *[4]float32) {
 	//fmt.Printf("Update with %v", u)
-	t.x360.LeftJoystick(u[0], u[1])
-	t.x360.RightJoystick(u[2], u[3])
+	t.x360.LeftJoystick(float32ToInt16(Input[1]), float32ToInt16(Input[0]))
+	t.x360.RightJoystick(-float32ToInt16(Input[3]), float32ToInt16(Input[2]))
 	t.x360.Update()
 }
 
