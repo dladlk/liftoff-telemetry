@@ -64,6 +64,10 @@ func main() {
 
 	fmt.Println("Left joystick: WSAD, Right joystick: ↑↓←→, Q quit, R reset")
 	keyboard.Listen(func(key keys.Key) (stop bool, err error) {
+		if key.Code == keys.Null {
+			// Ignore Ctrl-@ which is sent by debugger...
+			return false, nil
+		}
 		if key.Code == keys.CtrlC {
 			return true, nil
 		}
