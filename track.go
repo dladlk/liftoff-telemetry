@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"strings"
 )
@@ -59,6 +58,9 @@ func parseFormats(formatNames []string) []StreamDataType {
 type Track struct {
 	path   string
 	fields []StreamDataType
+	list   []Datagram
+	minTs  float32
+	maxTs  float32
 }
 
 // UDP Server to get Litfoff Telemtry
@@ -102,18 +104,18 @@ func CalculateBlockLength(fields []StreamDataType) int8 {
 	return length
 }
 
-func (t *Track) Open(path string) ([]Datagram, error) {
+func (t *Track) Open(path string) error {
 	t.path = path
 
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer file.Close()
 	reader := bufio.NewReader(file)
 	header, err := reader.ReadString('\n')
 	if err != nil && err.Error() != "EOF" {
-		return nil, errors.New("Failed to read first line as header")
+		return errors.New("Failed to read first line as header")
 	}
 	header = strings.TrimSpace(header)
 	t.fields = parseFormats(strings.Split(header, ","))
@@ -126,39 +128,28 @@ func (t *Track) Open(path string) ([]Datagram, error) {
 
 	blocks := 0
 
-	var minTs float32 = math.MaxFloat32
-	var maxTs float32 = 0
-
-	list := []Datagram{}
-
 	for {
 		n, err := io.ReadFull(reader, buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
 				break
 			}
-			return nil, err
+			return err
 		}
 		if n != int(blockLength) {
-			return nil, fmt.Errorf("Expected to read %d bytes, but read only %d", blockLength, n)
+			return fmt.Errorf("Expected to read %d bytes, but read only %d", blockLength, n)
 		}
 		blocks++
 		data := Datagram{}
 		readDatagram(buffer, n, t, &data)
 
-		list = append(list, data)
-
-		if data.Timestamp > maxTs {
-			maxTs = data.Timestamp
-		}
-		if data.Timestamp < minTs {
-			minTs = data.Timestamp
-		}
-
+		t.list = append(t.list, data)
 	}
-	fmt.Printf("Loaded %d blocks, min ts %.2f sec, max ts %.2f sec\n", blocks, minTs, maxTs)
+	t.minTs = t.list[0].Timestamp
+	t.maxTs = t.list[len(t.list)-1].Timestamp
+	fmt.Printf("Loaded %d blocks, min ts %.2f sec, max ts %.2f sec\n", blocks, t.minTs, t.maxTs)
 
-	return list, nil
+	return nil
 }
 
 func readDatagram(buffer []byte, n int, t *Track, cur *Datagram) {

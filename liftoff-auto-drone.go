@@ -171,26 +171,30 @@ func main() {
 			}
 			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
 		case TrackStreamMode:
-			fmt.Printf("\rYou have 3 seconds to switch to Liftoff window to process track. Press T to terminate running\r\n")
-			p(3000)
+			sleepTime := 3000
+			if noopDrone {
+				sleepTime = 0
+			}
+			fmt.Printf("\rYou have %d seconds to switch to Liftoff window to process track. Press T to terminate running\r\n", sleepTime/1000)
+			p(sleepTime)
 			filepath := fmt.Sprintf("track_%d.bin", modeIndex)
 			go func() (bool, error) {
 				track := Track{}
-				list, err := track.Open(filepath)
+				err := track.Open(filepath)
 				if err != nil {
 					fmt.Printf("Failed to read bin track %d: %v\n", modeIndex, err)
 					return false, err
 				}
-				for i, c := range list {
+				for i, c := range track.list {
 					select {
 					case <-trackRunStopChannel:
-						fmt.Printf("\rTerminated on %d of %d - %.2f%%", i, len(list), float32(i+1)/float32(len(list))*100.0)
+						fmt.Printf("\rTerminated on %d of %d - %.2f%%", i, len(track.list), float32(i+1)/float32(len(track.list))*100.0)
 						return false, nil
 					default:
 						drone.UpdateByInput(c.Input)
 						p(10)
 						if i%100 == 0 {
-							fmt.Printf("\rDone %d of %d - %.2f %%", i, len(list), float32(i+1)/float32(len(list))*100.0)
+							fmt.Printf("\rDone %d of %d - %.2f %%", i, len(track.list), float32(i+1)/float32(len(track.list))*100.0)
 						}
 					}
 				}
