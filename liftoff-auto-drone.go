@@ -10,6 +10,8 @@ import (
 	"atomicgo.dev/keyboard/keys"
 )
 
+const noopDrone = true
+
 // Manual calibration:
 /*
 Yaw	- Channel 0, left.x
@@ -46,14 +48,18 @@ func convert(v int8) int16 {
 	return convertRatio * int16(v)
 }
 
-var drone Drone
+var drone IDrone
 
 func main() {
 	left := Joystick{}
 	right := Joystick{}
 	var step int8 = 1
 
-	drone = Drone{}
+	if noopDrone {
+		drone = &NoopDrone{}
+	} else {
+		drone = &Drone{}
+	}
 	drone.Init()
 
 	fmt.Println("Left joystick: WSAD, Right joystick: ↑↓←→, Q quit, R reset")
@@ -152,7 +158,7 @@ func main() {
 			p(3000)
 			for _, c := range telemetry.Records {
 				fmt.Printf("\r\n %+v", c)
-				drone.UpdateByTelemetryRecord(c)
+				drone.UpdateByInput(c.Input)
 				p(100)
 			}
 			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
@@ -173,7 +179,7 @@ func main() {
 
 		default:
 			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
-			drone.Update(left, right)
+			drone.UpdateLeftRight(left, right)
 		}
 		return false, nil
 	})
@@ -189,5 +195,5 @@ func p(millis int) {
 }
 func u(lx int8, ly int8, rx int8, ry int8) {
 	//fmt.Printf("Update %d %d %d %d\r\n", lx, ly, rx, ry)
-	drone.Update2(lx, ly, rx, ry)
+	drone.Update(lx, ly, rx, ry)
 }
