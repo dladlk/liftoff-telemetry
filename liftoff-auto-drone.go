@@ -180,25 +180,33 @@ func main() {
 			filepath := fmt.Sprintf("track_%d.bin", modeIndex)
 			go func() (bool, error) {
 				track := Track{}
+				startTime := time.Now()
 				err := track.Open(filepath)
 				if err != nil {
 					fmt.Printf("Failed to read bin track %d: %v\n", modeIndex, err)
 					return false, err
 				}
+				progressPrint := func(prefix string, i int) string {
+					durationSec := float64(time.Since(startTime).Round(time.Millisecond).Milliseconds()) / 1000.0
+					simulationDurationSec := track.list[i].Timestamp - track.minTs
+					diff := durationSec - float64(simulationDurationSec)
+					progressPercent := float32(i+1) / float32(len(track.list)) * 100.0
+					return fmt.Sprintf("%s %d of %d - %.2f%% in %.2f s, track dur %.2f s, diff %.2f s", prefix, i, len(track.list), progressPercent, durationSec, simulationDurationSec, diff)
+				}
 				for i, c := range track.list {
 					select {
 					case <-trackRunStopChannel:
-						fmt.Printf("\rTerminated on %d of %d - %.2f%%", i, len(track.list), float32(i+1)/float32(len(track.list))*100.0)
+						fmt.Printf("%s\r\n", progressPrint("\rTerminated on", i))
 						return false, nil
 					default:
 						drone.UpdateByInput(c.Input)
 						p(10)
 						if i%100 == 0 {
-							fmt.Printf("\rDone %d of %d - %.2f %%", i, len(track.list), float32(i+1)/float32(len(track.list))*100.0)
+							fmt.Print(progressPrint("\rDone on", i))
 						}
 					}
 				}
-				fmt.Printf("\rFinished\r\n")
+				fmt.Printf("%s\r\n", progressPrint("\rFinished", len(track.list)))
 				return false, nil
 			}()
 
@@ -209,7 +217,7 @@ func main() {
 		return false, nil
 	})
 
-	fmt.Println("Unregister, disconnect and release")
+	fmt.Println("\r\nUnregister, disconnect and release")
 
 	drone.Close()
 }
