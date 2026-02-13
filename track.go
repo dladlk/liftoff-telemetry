@@ -120,7 +120,7 @@ func (t *Track) Open(path string) ([]Datagram, error) {
 
 	blockLength := CalculateBlockLength(t.fields)
 
-	fmt.Printf("File header: %s, block length: %d\n", header, blockLength)
+	fmt.Printf("File header: %s, block length: %d\r\n", header, blockLength)
 
 	buffer := make([]byte, blockLength)
 
@@ -152,11 +152,11 @@ func (t *Track) Open(path string) ([]Datagram, error) {
 			maxTs = data.Timestamp
 		}
 		if data.Timestamp < minTs {
-			maxTs = data.Timestamp
+			minTs = data.Timestamp
 		}
 
 	}
-	fmt.Printf("Loaded %d blocks, min ts %v, max ts %v\n", blocks, minTs, maxTs)
+	fmt.Printf("Loaded %d blocks, min ts %.2f sec, max ts %.2f sec\n", blocks, minTs, maxTs)
 
 	return list, nil
 }
