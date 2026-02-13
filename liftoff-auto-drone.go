@@ -63,6 +63,7 @@ func main() {
 	drone.Init()
 
 	trackRunStopChannel := make(chan bool)
+	trackRunning := false
 
 	fmt.Println("Left joystick: WSAD, Right joystick: ↑↓←→, Q quit, R reset")
 	keyboard.Listen(func(key keys.Key) (stop bool, err error) {
@@ -112,8 +113,10 @@ func main() {
 				if left.x < posPerDirection {
 					left.x += step
 				}
-			case "t": // Terminate track running
-				trackRunStopChannel <- true
+			case "t": // Terminate if track running
+				if trackRunning {
+					trackRunStopChannel <- true
+				}
 			case "r": // RESET
 				left.Reset()
 				right.Reset()
@@ -178,6 +181,7 @@ func main() {
 			fmt.Printf("\rYou have %d seconds to switch to Liftoff window to process track. Press T to terminate running\r\n", sleepTime/1000)
 			p(sleepTime)
 			filepath := fmt.Sprintf("track_%d.bin", modeIndex)
+			trackRunning = true
 			go func() (bool, error) {
 				track := Track{}
 				startTime := time.Now()
@@ -200,6 +204,7 @@ func main() {
 						return false, nil
 					default:
 						drone.UpdateByInput(&c.Input)
+						// TODO: Calculate pause dynamically and use Microseconds
 						p(9)
 						if i%100 == 0 {
 							fmt.Print(progressPrint("\rDone on", i))
@@ -209,6 +214,7 @@ func main() {
 				fmt.Printf("%s\r\n", progressPrint("\rFinished", len(track.List)-1))
 				return false, nil
 			}()
+			trackRunning = false
 
 		default:
 			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
