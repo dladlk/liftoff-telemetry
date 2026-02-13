@@ -36,6 +36,7 @@ const (
 	Keyboard RunMode = iota
 	PlanMode
 	TrackMode
+	TrackStreamMode
 )
 
 const posPerDirection = 8
@@ -109,8 +110,12 @@ func main() {
 					runMode = PlanMode
 					modeIndex, _ = strconv.Atoi(key.String())
 				}
-				if key.String() >= "5" && key.String() <= "9" {
+				if key.String() == "5" {
 					runMode = TrackMode
+					modeIndex, _ = strconv.Atoi(key.String())
+				}
+				if key.String() >= "6" && key.String() <= "9" {
+					runMode = TrackStreamMode
 					modeIndex, _ = strconv.Atoi(key.String())
 				}
 			}
@@ -148,9 +153,24 @@ func main() {
 			for _, c := range telemetry.Records {
 				fmt.Printf("\r\n %+v", c)
 				drone.UpdateByTelemetryRecord(c)
-				p(1000)
+				p(100)
 			}
 			fmt.Printf("Plan %d Done                              \r\n", modeIndex)
+		case TrackStreamMode:
+			fmt.Printf("Sleep to switch to main window")
+			p(3000)
+			filepath := fmt.Sprintf("track_%d.bin", modeIndex)
+			track := Track{}
+			list, err := track.Open(filepath)
+			if err != nil {
+				fmt.Printf("\nFailed to read bin track %d: %v", modeIndex, err)
+				return false, nil
+			}
+			for _, c := range list {
+				drone.UpdateByInput(c.Input)
+				p(10)
+			}
+
 		default:
 			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
 			drone.Update(left, right)
@@ -164,10 +184,10 @@ func main() {
 }
 
 func p(millis int) {
-	fmt.Printf("Sleep %v millis\r\n", millis)
+	//fmt.Printf("Sleep %v millis\r\n", millis)
 	time.Sleep(time.Duration(millis) * time.Millisecond)
 }
 func u(lx int8, ly int8, rx int8, ry int8) {
-	fmt.Printf("Update %d %d %d %d\r\n", lx, ly, rx, ry)
+	//fmt.Printf("Update %d %d %d %d\r\n", lx, ly, rx, ry)
 	drone.Update2(lx, ly, rx, ry)
 }
