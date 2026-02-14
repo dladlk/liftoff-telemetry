@@ -48,6 +48,8 @@ func convert(v int8) int16 {
 	return convertRatio * int16(v)
 }
 
+const VERSION = "0.0.1"
+
 var drone IDrone
 
 func main() {
@@ -58,7 +60,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 	doHelp := flag.Bool("help", false, "Prints help")
-	doDryRun := flag.Bool("dry-run", false, "Dry-run - without starting ")
+	doDryRun := flag.Bool("dry-run", false, "Dry-run - without starting joystick simulation")
 
 	flag.Parse()
 	if *doHelp {
@@ -74,6 +76,7 @@ func main() {
 
 	if noopDrone {
 		drone = &NoopDrone{}
+		fmt.Printf("Start without joystick simulation\n")
 	} else {
 		drone = &Drone{}
 	}
