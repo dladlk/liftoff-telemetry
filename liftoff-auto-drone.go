@@ -1,16 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"time"
 
 	"atomicgo.dev/keyboard"
 	"atomicgo.dev/keyboard/keys"
 )
-
-const noopDrone = false
 
 // Manual calibration:
 /*
@@ -51,6 +51,23 @@ func convert(v int8) int16 {
 var drone IDrone
 
 func main() {
+
+	flag.Usage = func() {
+		fmt.Printf("Version %s\n", VERSION)
+		fmt.Printf("Usage: %s [OPTIONS]\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+	doHelp := flag.Bool("help", false, "Prints help")
+	doDryRun := flag.Bool("dry-run", false, "Dry-run - without starting ")
+
+	flag.Parse()
+	if *doHelp {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	noopDrone := *doDryRun
+
 	left := Joystick{}
 	right := Joystick{}
 	var step int8 = 1
