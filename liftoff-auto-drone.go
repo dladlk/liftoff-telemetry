@@ -210,24 +210,38 @@ func main() {
 					fmt.Printf("Failed to read bin track %d: %v\n", modeIndex, err)
 					return false, err
 				}
+				skipFramesCount := 0
 				progressPrint := func(prefix string, i int) string {
 					durationSec := float64(time.Since(startTime).Round(time.Millisecond).Milliseconds()) / 1000.0
 					simulationDurationSec := track.List[i].Timestamp - track.minTs
 					diff := durationSec - float64(simulationDurationSec)
 					progressPercent := float32(i+1) / float32(len(track.List)) * 100.0
-					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s", prefix, i, len(track.List), progressPercent, durationSec, simulationDurationSec, diff)
+					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s, skipped %d frames", prefix, i, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount)
 				}
+
 				for i, c := range track.List {
+					if i == 0 {
+						drone.UpdateByInput(&c.Input)
+						continue
+					}
 					select {
 					case <-trackRunStopChannel:
 						fmt.Printf("%s\r\n", progressPrint("\rTerminated on", i))
 						return false, nil
 					default:
-						drone.UpdateByInput(&c.Input)
-						// TODO: Calculate pause dynamically and use Microseconds
-						p(9)
+						durationSec := float32(time.Since(startTime).Microseconds()) / 1000_000
+						simulationDurationSec := c.Timestamp - track.minTs
+						diff := simulationDurationSec - durationSec
+						if diff > 0.000001 {
+							time.Sleep(time.Duration(diff*1000_000) * time.Microsecond)
+						}
+						if diff < 0 {
+							skipFramesCount += 1
+						} else {
+							drone.UpdateByInput(&c.Input)
+						}
 						if i%100 == 0 {
-							fmt.Print(progressPrint("\rDone on", i))
+							fmt.Print(progressPrint("\rDone", i))
 						}
 					}
 				}
