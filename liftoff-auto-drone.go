@@ -136,6 +136,7 @@ func main() {
 			case "t": // Terminate if track running
 				if trackRunning {
 					trackRunStopChannel <- true
+					trackRunning = false
 				}
 			case "r": // RESET
 				left.Reset()
@@ -248,7 +249,6 @@ func main() {
 				fmt.Printf("%s\r\n", progressPrint("\rFinished", len(track.List)-1))
 				return false, nil
 			}()
-			trackRunning = false
 
 		default:
 			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
