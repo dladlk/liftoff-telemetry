@@ -223,7 +223,7 @@ func main() {
 					simulationDurationSec := track.List[i].Timestamp - track.minTs
 					diff := durationSec - float64(simulationDurationSec)
 					progressPercent := float32(i+1) / float32(len(track.List)) * 100.0
-					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s, skipped %d frames", prefix, i, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount)
+					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s, skipped %d frames", prefix, i+1, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount)
 				}
 
 				for i, c := range track.List {
