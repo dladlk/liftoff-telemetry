@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -66,16 +65,6 @@ func (t *TelemetryListener) Toggle() {
 					t.mu.Lock()
 					t.lastBytes = copiedBytes
 					t.lastBytesIndex++
-
-					if t.lastBytesIndex%10 == 0 {
-						var input [4]float32
-						if err := binary.Read(bytes.NewReader(copiedBytes), binary.LittleEndian, &input); err != nil {
-							log.Fatalf("Failed to read Input as float[4]: %s\n", err)
-						}
-						inputStr := fmt.Sprintf("[%d] %.6f %.6f %.6f %.6f", t.lastBytesIndex, input[0], input[1], input[2], input[3])
-						fmt.Printf("\r\n%s", inputStr)
-					}
-
 					t.mu.Unlock()
 				} else {
 					log.Fatalf("Unexpected block length %d, expected %d", n, expectedBlockLength)
@@ -100,9 +89,6 @@ func (t *TelemetryListener) LastDatagram() (*lot_config.Datagram, int, bool) {
 			index := t.lastBytesIndex
 			copy(lastBytes, t.lastBytes)
 			t.mu.Unlock()
-
-			//fmt.Printf("\r\nParsed %d: %v\n", t.lastBytesIndex, lastBytes)
-
 			res := &lot_config.Datagram{}
 			res.ParseDatagram(bytes.NewReader(lastBytes), &t.lotConfig.StreamFormats)
 			return res, index, true
