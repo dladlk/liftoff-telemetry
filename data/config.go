@@ -8,20 +8,6 @@ import (
 	"os"
 )
 
-type StreamDataType int
-
-const (
-	Timestamp StreamDataType = iota
-	Position
-	Attitude
-	Velocity
-	Gyro
-	Input
-	Battery
-	MotorRPM
-	Unknown
-)
-
 type LiftoffTelemetryConfig struct {
 	Endpoint          string   `json:"EndPoint"`
 	StreamFormatNames []string `json:"StreamFormat"`
