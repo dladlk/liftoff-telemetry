@@ -1,0 +1,7 @@
+# lx, ly, rx, ry, duration
+Slow jump forward
+0	-2	0	0	2s
+0	-2	0	2	500
+0	-2	0	0	3s
+0	-2	0	-2	500
+0	-8	0	0	2s
