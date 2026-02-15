@@ -257,11 +257,13 @@ func main() {
 			}()
 
 		default:
-			lastTelemetry := ""
+			lastTelemetry := "not listening for telemtry"
 			if telemetryListener.running {
 				d, datagramIndex, ok := telemetryListener.LastDatagram()
 				if ok {
 					lastTelemetry = fmt.Sprintf("[%d] %.6f %.6f %.6f %.6f", datagramIndex, d.Input[0], d.Input[1], d.Input[2], d.Input[3])
+				} else {
+					lastTelemetry = "Nothing"
 				}
 			}
 			fmt.Printf("\r'%s'\t: %+v %+v %s %-30s", key.String(), left, right, lastTelemetry, "")
