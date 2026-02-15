@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	lot_config "github.com/dladlk/liftoff-telemetry/liftoff-telemetry-config"
+	lot_config "github.com/dladlk/liftoff-telemetry/data"
 )
 
 type StreamDataType int

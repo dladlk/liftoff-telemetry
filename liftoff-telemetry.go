@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	lot_config "github.com/dladlk/liftoff-telemetry/liftoff-telemetry-config"
+	lot_config "github.com/dladlk/liftoff-telemetry/data"
 )
 
 const CIRCLE_DISTANCE_TO_START = 3
