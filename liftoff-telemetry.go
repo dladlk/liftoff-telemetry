@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -92,20 +90,8 @@ func main() {
 
 	log.Printf("Liftoff Telemetry UDP server listening on %s\n", conn.LocalAddr().String())
 
-	binFormat := config.General.Format == "bin"
-
-	writeLogToFileExtension := ".csv"
-	if binFormat {
-		writeLogToFileExtension = ".bin"
-	}
-	writeLogToFile := fmt.Sprintf("liftoff_telemetry_%s", time.Now().Format("20060102_150405")+writeLogToFileExtension)
-	logFile, err := os.OpenFile(writeLogToFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to create log file %s: %v", writeLogToFile, err)
-	}
-	defer logFile.Close()
-	writeHeader(lotConfig, logFile)
-	binWriteBuf := new(bytes.Buffer)
+	writer := Writer{}
+	writer.Start(config, lotConfig)
 
 	buffer := make([]byte, 1024)
 	var prev *lot_config.Datagram
@@ -209,33 +195,7 @@ func main() {
 				}
 			}
 
-			if binFormat {
-				for _, f := range lotConfig.StreamFormats {
-					binWriteBuf.Reset()
-					switch f {
-					case lot_config.Timestamp:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Timestamp)
-					case lot_config.Position:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Position)
-					case lot_config.Attitude:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Attitude)
-					case lot_config.Velocity:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Velocity)
-					case lot_config.Gyro:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Gyro)
-					case lot_config.Input:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Input)
-					case lot_config.Battery:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Battery)
-					case lot_config.MotorRPM:
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.Motors)
-						binary.Write(binWriteBuf, binary.LittleEndian, cur.MotorRPM)
-					}
-					logFile.Write(binWriteBuf.Bytes())
-				}
-			} else {
-				fmt.Fprintf(logFile, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Index, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
-			}
+			writer.Write(&cur, &curSession)
 
 			if debug {
 				log.Printf("%+v", cur)
@@ -245,16 +205,4 @@ func main() {
 			log.Fatalf("Received unexpected UDP block length %d instead of %d", n, expectedBlockLength)
 		}
 	}
-}
-
-func writeHeader(lotConfig *lot_config.LiftoffTelemetryConfig, logFile *os.File) {
-	var headerBuffer bytes.Buffer // Declare a bytes.Buffer
-	for i, name := range lotConfig.StreamFormatNames {
-		if i > 0 {
-			headerBuffer.WriteString(",")
-		}
-		headerBuffer.WriteString(name)
-	}
-	headerBuffer.WriteString("\n")
-	logFile.Write(headerBuffer.Bytes())
 }
