@@ -116,6 +116,8 @@ func main() {
 	curSessionReported := false
 	var firstEvent *lot_config.Datagram = nil
 
+	expectedBlockLength := int(lot_config.CalculateBlockLength(lotConfig.StreamFormats))
+
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
@@ -125,7 +127,7 @@ func main() {
 		if debug {
 			log.Printf("Received %d bytes from %s\n", n, clientAddr)
 		}
-		if n > 0 {
+		if n == expectedBlockLength {
 			buf := bytes.NewReader(buffer[:n])
 			curSession.Events++
 			curCircle.Events++
@@ -239,6 +241,8 @@ func main() {
 				log.Printf("%+v", cur)
 			}
 			prev = &cur
+		} else {
+			log.Fatalf("Received unexpected UDP block length %d instead of %d", n, expectedBlockLength)
 		}
 	}
 }
