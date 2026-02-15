@@ -92,6 +92,7 @@ func main() {
 
 	writer := Writer{}
 	writer.Start(config, lotConfig)
+	defer writer.Close()
 
 	buffer := make([]byte, 1024)
 	var prev *lot_config.Datagram
@@ -178,6 +179,8 @@ func main() {
 					(lotConfig.HasPosition() && prev.ZeroPosition() && cur.ZeroPosition()) {
 					curSession.Report()
 					curSessionReported = true
+
+					writer.Restart()
 					curSession = Trip{Type: "Race", Start: time.Now(), Index: curSession.Index + 1}
 					curCircle = Trip{Type: "Circle", Start: time.Now(), Index: 1}
 					firstEvent = &cur

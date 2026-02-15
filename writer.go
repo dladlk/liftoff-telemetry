@@ -33,22 +33,22 @@ func (t *Writer) Start(config *Config, lotConfig *lot_config.LiftoffTelemetryCon
 	if err != nil {
 		log.Fatalf("Failed to create log file %s: %v", writeLogToFile, err)
 	}
-	defer logFile.Close()
 	t.logFile = logFile
 	t.writeHeader()
 	t.binWriteBuf = new(bytes.Buffer)
 }
 
 func (t *Writer) Restart() {
-	t.Finish()
+	t.Close()
 	t.Start(t.config, t.lotConfig)
 }
 
-func (t *Writer) Finish() {
+func (t *Writer) Close() {
+	log.Printf("Session is written to file %s", t.logFile.Name())
 	t.logFile.Close()
 }
 
-func (t Writer) writeHeader() {
+func (t *Writer) writeHeader() {
 	var headerBuffer bytes.Buffer // Declare a bytes.Buffer
 	for i, name := range t.lotConfig.StreamFormatNames {
 		if i > 0 {
@@ -60,7 +60,7 @@ func (t Writer) writeHeader() {
 	t.logFile.Write(headerBuffer.Bytes())
 }
 
-func (t Writer) Write(cur *lot_config.Datagram, curSession *Trip) {
+func (t *Writer) Write(cur *lot_config.Datagram, curSession *Trip) {
 	if t.binFormat {
 		for _, f := range t.lotConfig.StreamFormats {
 			t.binWriteBuf.Reset()
