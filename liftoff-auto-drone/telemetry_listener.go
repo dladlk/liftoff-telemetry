@@ -65,13 +65,13 @@ func (t *TelemetryListener) Toggle() {
 	t.running = !t.running
 }
 
-func (t *TelemetryListener) LastDatagram() (*lot_config.Datagram, bool) {
+func (t *TelemetryListener) LastDatagram() (*lot_config.Datagram, int, bool) {
 	if t.running {
 		if t.lastBytesIndex > 0 {
 			res := &lot_config.Datagram{}
 			res.ParseDatagram(bytes.NewReader(*t.lastBytes), &t.lotConfig.StreamFormats)
-			return res, true
+			return res, t.lastBytesIndex, true
 		}
 	}
-	return nil, false
+	return nil, t.lastBytesIndex, false
 }

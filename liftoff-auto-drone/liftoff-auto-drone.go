@@ -259,9 +259,9 @@ func main() {
 		default:
 			lastTelemetry := ""
 			if telemetryListener.running {
-				d, ok := telemetryListener.LastDatagram()
+				d, datagramIndex, ok := telemetryListener.LastDatagram()
 				if ok {
-					lastTelemetry = fmt.Sprintf("%.6f %.6f %.6f %.6f", d.Input[0], d.Input[1], d.Input[2], d.Input[3])
+					lastTelemetry = fmt.Sprintf("[%d] %.6f %.6f %.6f %.6f", datagramIndex, d.Input[0], d.Input[1], d.Input[2], d.Input[3])
 				}
 			}
 			fmt.Printf("\r'%s'\t: %+v %+v %s %-30s", key.String(), left, right, lastTelemetry, "")
