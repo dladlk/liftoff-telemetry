@@ -15,6 +15,10 @@ type LiftoffTelemetryConfig struct {
 	StreamFormatsMap  map[StreamDataType]string
 }
 
+func (t LiftoffTelemetryConfig) String() string {
+	return fmt.Sprintf("endpoint '%s' send %v", t.Endpoint, t.StreamFormatNames)
+}
+
 func (t LiftoffTelemetryConfig) HasStreamDataType(dataType StreamDataType) bool {
 	_, ok := t.StreamFormatsMap[dataType]
 	return ok
