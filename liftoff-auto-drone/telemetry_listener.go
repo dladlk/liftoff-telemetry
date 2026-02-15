@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -42,11 +43,15 @@ func (t *TelemetryListener) Toggle() {
 
 		expectedBlockLength := int(lot_config.CalculateBlockLength(lotConfig.StreamFormats))
 		t.expected = expectedBlockLength
+		t.running = true
 
 		go func() {
 			buffer := make([]byte, expectedBlockLength)
 
 			for {
+				if !t.running {
+					break
+				}
 				n, clientAddr, err := conn.ReadFromUDP(buffer)
 				if err != nil {
 					log.Fatalf("Read error from %s: %v\n", clientAddr, err)
@@ -63,7 +68,12 @@ func (t *TelemetryListener) Toggle() {
 					t.lastBytesIndex++
 
 					if t.lastBytesIndex%10 == 0 {
-						fmt.Printf("\r\nReceived %d: %v", t.lastBytesIndex, copiedBytes)
+						var input [4]float32
+						if err := binary.Read(bytes.NewReader(copiedBytes), binary.LittleEndian, &input); err != nil {
+							log.Fatalf("Failed to read Input as float[4]: %s\n", err)
+						}
+						inputStr := fmt.Sprintf("[%d] %.6f %.6f %.6f %.6f", t.lastBytesIndex, input[0], input[1], input[2], input[3])
+						fmt.Printf("\r\n%s", inputStr)
 					}
 
 					t.mu.Unlock()
@@ -74,12 +84,12 @@ func (t *TelemetryListener) Toggle() {
 
 		}()
 	} else {
+		t.running = false
 		t.conn.Close()
 		t.lastBytes = nil
 		t.lastBytesIndex = 0
 		fmt.Printf("\r\nStopped telemetry listener\n")
 	}
-	t.running = !t.running
 }
 
 func (t *TelemetryListener) LastDatagram() (*lot_config.Datagram, int, bool) {
