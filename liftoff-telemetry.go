@@ -135,58 +135,18 @@ func main() {
 			}
 
 			cur := lot_config.Datagram{}
-			order := binary.LittleEndian
+			cur.ParseDatagram(buf, &lotConfig.StreamFormats)
 
-			for _, dataType := range lotConfig.StreamFormats {
-				switch dataType {
-				case lot_config.Timestamp:
-					if err := binary.Read(buf, order, &cur.Timestamp); err != nil {
-						log.Fatalf("Failed to read Timestamp as float: %s\n", err)
-					}
-				case lot_config.Position:
-					if err := binary.Read(buf, order, &cur.Position); err != nil {
-						log.Fatalf("Failed to read Position as float[3]: %s\n", err)
-					}
-					if cur.ZeroPosition() {
-						if curSessionReported {
-							// Ignore telemetry with zero position after reporting - wait for restart
-							continue
-						}
-					} else {
-						if curSessionReported {
-							curSessionReported = false
-							// Discard previous session data - it was an empty, fake session after race finished until new started
-							curSession = Trip{Type: curSession.Type, Start: time.Now(), Index: curSession.Index}
-						}
-					}
-				case lot_config.Attitude:
-					if err := binary.Read(buf, order, &cur.Attitude); err != nil {
-						log.Fatalf("Failed to read Attitude as float[4]: %s\n", err)
-					}
-				case lot_config.Velocity:
-					if err := binary.Read(buf, order, &cur.Velocity); err != nil {
-						log.Fatalf("Failed to read Velocity as float[3]: %s\n", err)
-					}
-				case lot_config.Gyro:
-					if err := binary.Read(buf, order, &cur.Gyro); err != nil {
-						log.Fatalf("Failed to read Gyro as float[3]: %s\n", err)
-					}
-				case lot_config.Input:
-					if err := binary.Read(buf, order, &cur.Input); err != nil {
-						log.Fatalf("Failed to read Input as float[4]: %s\n", err)
-					}
-				case lot_config.Battery:
-					if err := binary.Read(buf, order, &cur.Battery); err != nil {
-						log.Fatalf("Failed to read Battery as float[2]: %s\n", err)
-					}
-				case lot_config.MotorRPM:
-					if err := binary.Read(buf, order, &cur.Motors); err != nil {
-						log.Fatalf("Failed to read Motors as byte: %s\n", err)
-					}
-					cur.MotorRPM = make([]float32, cur.Motors)
-					if err := binary.Read(buf, order, &cur.MotorRPM); err != nil {
-						log.Fatalf("Failed to read MotorRPM as float[%d]: %s\n", cur.Motors, err)
-					}
+			if cur.ZeroPosition() {
+				if curSessionReported {
+					// Ignore telemetry with zero position after reporting - wait for restart
+					continue
+				}
+			} else {
+				if curSessionReported {
+					curSessionReported = false
+					// Discard previous session data - it was an empty, fake session after race finished until new started
+					curSession = Trip{Type: curSession.Type, Start: time.Now(), Index: curSession.Index}
 				}
 			}
 
