@@ -10,6 +10,8 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	lot_config "github.com/dladlk/liftoff-telemetry/liftoff-telemetry-config"
 )
 
 type StreamDataType int
@@ -58,24 +60,9 @@ func parseFormats(formatNames []string) []StreamDataType {
 type Track struct {
 	path   string
 	fields []StreamDataType
-	List   []Datagram
+	List   []lot_config.Datagram
 	minTs  float32
 	maxTs  float32
-}
-
-// UDP Server to get Litfoff Telemtry
-// https://steamcommunity.com/sharedfiles/filedetails/?id=3160488434
-
-type Datagram struct {
-	Timestamp float32    `desc:"seconds"`
-	Position  [3]float32 `desc:"3d coordinate, X, Y, Z"`
-	Attitude  [4]float32 `desc:"X, Y, Z, W"`
-	Velocity  [3]float32 `desc:"meters/second, X, Y, Z (world space, https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )"`
-	Gyro      [3]float32 `desc:"angular velocity rates - pitch, roll, yaw in degrees/second"`
-	Input     [4]float32 `desc:"throttle, yaw, pitch, roll"`
-	Battery   [2]float32 `desc:"remaining voltage and charge percentage"`
-	Motors    byte       `desc:"number of motors"`
-	MotorRPM  []float32  `desc:"rpm per each motor"`
 }
 
 const (
@@ -140,7 +127,7 @@ func (t *Track) Open(path string) error {
 			return fmt.Errorf("Expected to read %d bytes, but read only %d", blockLength, n)
 		}
 		blocks++
-		data := Datagram{}
+		data := lot_config.Datagram{}
 		readDatagram(buffer, n, t, &data)
 
 		t.List = append(t.List, data)
@@ -152,7 +139,7 @@ func (t *Track) Open(path string) error {
 	return nil
 }
 
-func readDatagram(buffer []byte, n int, t *Track, cur *Datagram) {
+func readDatagram(buffer []byte, n int, t *Track, cur *lot_config.Datagram) {
 	buf := bytes.NewReader(buffer[:n])
 
 	order := binary.LittleEndian
