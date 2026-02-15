@@ -70,6 +70,8 @@ func main() {
 
 	noopDrone := *doDryRun
 
+	telemetryListener := TelemetryListener{}
+
 	left := Joystick{}
 	right := Joystick{}
 	var step int8 = 1
@@ -143,6 +145,8 @@ func main() {
 				right.Reset()
 			case "q":
 				return true, nil
+			case "u": // Toggle telemetry listener
+				telemetryListener.Toggle()
 			default:
 				if key.String() >= "0" && key.String() < "5" {
 					runMode = PlanMode
