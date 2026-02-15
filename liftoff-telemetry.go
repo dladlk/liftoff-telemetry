@@ -101,7 +101,7 @@ func main() {
 		os.Exit(0) // Exit gracefully after the command finishes
 	}()
 
-	lotConfig, err := lot_config.ReadConfig()
+	lotConfig, err := lot_config.ReadLiftoffTelemetryConfig()
 	if err != nil {
 		log.Fatalf("Failed to read telemetry configuration: %v", err)
 	}

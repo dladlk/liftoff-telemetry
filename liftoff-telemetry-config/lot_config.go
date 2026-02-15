@@ -71,7 +71,7 @@ func (t *LiftoffTelemetryConfig) UpdateStreamFormats() {
 	}
 }
 
-func ReadConfig() (*LiftoffTelemetryConfig, error) {
+func ReadLiftoffTelemetryConfig() (*LiftoffTelemetryConfig, error) {
 	userProfile := os.Getenv("USERPROFILE") // For Windows, use "HOME" or similar for Unix
 	if userProfile == "" {
 		return nil, errors.New("Cannot resolve %USERPROFILE% env variable")
