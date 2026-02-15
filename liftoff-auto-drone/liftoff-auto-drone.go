@@ -87,7 +87,7 @@ func main() {
 	trackRunStopChannel := make(chan bool)
 	trackRunning := false
 
-	fmt.Println("Left joystick: WSAD, Right joystick: ↑↓←→, Q quit, R reset")
+	fmt.Println("Left: WSAD, Right: ↑↓←→, Q quit, R reset, U udp toggle, SPACE telemtry")
 	keyboard.Listen(func(key keys.Key) (stop bool, err error) {
 		if key.Code == keys.Null {
 			// Ignore Ctrl-@ which is sent by debugger...
@@ -117,6 +117,8 @@ func main() {
 			if right.x < posPerDirection {
 				right.x += step
 			}
+		case keys.Space:
+			// Just do nothing
 		case keys.RuneKey:
 			switch key.String() {
 			case "w":
@@ -255,7 +257,14 @@ func main() {
 			}()
 
 		default:
-			fmt.Printf("\r%s      \t: %+v %+v    ", key.String(), left, right)
+			lastTelemetry := ""
+			if telemetryListener.running {
+				d, ok := telemetryListener.LastDatagram()
+				if ok {
+					lastTelemetry = fmt.Sprintf("%.6f %.6f %.6f %.6f", d.Input[0], d.Input[1], d.Input[2], d.Input[3])
+				}
+			}
+			fmt.Printf("\r'%s'\t: %+v %+v %s %-30s", key.String(), left, right, lastTelemetry, "")
 			drone.UpdateLeftRight(left, right)
 		}
 		return false, nil

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -9,9 +10,11 @@ import (
 )
 
 type TelemetryListener struct {
-	running   bool
-	lotConfig lot_config.LiftoffTelemetryConfig
-	conn      *net.UDPConn
+	running        bool
+	lotConfig      lot_config.LiftoffTelemetryConfig
+	conn           *net.UDPConn
+	lastBytes      *[]byte
+	lastBytesIndex int
 }
 
 func (t *TelemetryListener) Toggle() {
@@ -35,7 +38,7 @@ func (t *TelemetryListener) Toggle() {
 
 		expectedBlockLength := int(lot_config.CalculateBlockLength(lotConfig.StreamFormats))
 		empty := make([]byte, expectedBlockLength)
-		var last_bytes *[]byte = &empty
+		t.lastBytes = &empty
 
 		go func() {
 			buffer := make([]byte, 1024)
@@ -47,14 +50,28 @@ func (t *TelemetryListener) Toggle() {
 					continue
 				}
 				if n == expectedBlockLength {
-					copy(*last_bytes, buffer[:n])
+					copy(*t.lastBytes, buffer[:n])
+					t.lastBytesIndex++
 				}
 			}
 
 		}()
 	} else {
 		t.conn.Close()
+		t.lastBytes = nil
+		t.lastBytesIndex = 0
 		fmt.Printf("\r\nStopped telemetry listener\n")
 	}
 	t.running = !t.running
+}
+
+func (t *TelemetryListener) LastDatagram() (*lot_config.Datagram, bool) {
+	if t.running {
+		if t.lastBytesIndex > 0 {
+			res := &lot_config.Datagram{}
+			res.ParseDatagram(bytes.NewReader(*t.lastBytes), &t.lotConfig.StreamFormats)
+			return res, true
+		}
+	}
+	return nil, false
 }
