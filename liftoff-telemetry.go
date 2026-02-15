@@ -80,7 +80,7 @@ func main() {
 	}
 	log.Printf("Found Liftoff Telemetry Config: %+v \n", lotConfig)
 
-	address, err := net.ResolveUDPAddr("udp", ":9001")
+	address, err := net.ResolveUDPAddr("udp", lotConfig.Endpoint)
 	if err != nil {
 		log.Fatal("Error resolving UDP address:", err)
 	}
