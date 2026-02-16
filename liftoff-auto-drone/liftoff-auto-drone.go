@@ -223,7 +223,22 @@ func main() {
 					simulationDurationSec := track.List[i].Timestamp - track.minTs
 					diff := durationSec - float64(simulationDurationSec)
 					progressPercent := float32(i+1) / float32(len(track.List)) * 100.0
-					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s, skipped %d frames", prefix, i+1, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount)
+
+					telemetryStatus := ""
+					if telemetryListener.running {
+						dt, dtIndex, ok := telemetryListener.LastDatagram()
+						if ok {
+							lastSent := track.List[i]
+							lastSentInput := lastSent.Input
+							lastRealInput := dt.Input
+
+							telemetryStatus = fmt.Sprintf(", sent %.6f sec [%.6f %.6f %.6f %.6f] real %.6f sec %d. [%.6f %.6f %.6f %.6f]",
+								lastSent.Timestamp, lastSentInput[0], lastSentInput[1], lastSentInput[2], lastSentInput[3],
+								dt.Timestamp, dtIndex, lastRealInput[0], lastRealInput[1], lastRealInput[2], lastRealInput[3])
+						}
+					}
+
+					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s, skipped %d frames%s", prefix, i+1, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount, telemetryStatus)
 				}
 
 				for i, c := range track.List {
