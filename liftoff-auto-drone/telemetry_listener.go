@@ -38,7 +38,7 @@ func (t *TelemetryListener) Toggle() {
 		}
 		t.conn = conn
 
-		fmt.Printf("\r\nStarted telemetry listener on %v by config %+v\n", lotConfig.Endpoint, lotConfig)
+		fmt.Printf("\r\nStarted telemetry listener by config %+v\n", lotConfig)
 
 		expectedBlockLength := int(lot_config.CalculateBlockLength(lotConfig.StreamFormats))
 		t.expected = expectedBlockLength
@@ -49,6 +49,8 @@ func (t *TelemetryListener) Toggle() {
 
 			for {
 				if !t.running {
+					fmt.Printf("Closed telemetry listener")
+					t.conn.Close()
 					break
 				}
 				n, clientAddr, err := conn.ReadFromUDP(buffer)
@@ -74,10 +76,9 @@ func (t *TelemetryListener) Toggle() {
 		}()
 	} else {
 		t.running = false
-		t.conn.Close()
 		t.lastBytes = nil
 		t.lastBytesIndex = 0
-		fmt.Printf("\r\nStopped telemetry listener\n")
+		log.Printf("\r\nStopped telemetry listener\n")
 	}
 }
 
