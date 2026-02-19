@@ -294,7 +294,7 @@ func main() {
 }
 
 func vectorPrint(name string, v [4]float32) string {
-	return fmt.Sprintf("%s [%+.6f %+.6f %+.6f %+.6f]", name, v[0], v[1], v[2], v[3])
+	return fmt.Sprintf("%s [% .6f % .6f % .6f % .6f]", name, v[0], v[1], v[2], v[3])
 }
 
 func vectorDiff(v1 [4]float32, v2 [4]float32) [4]float32 {
