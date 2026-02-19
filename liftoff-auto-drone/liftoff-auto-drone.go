@@ -226,15 +226,16 @@ func main() {
 
 					telemetryStatus := ""
 					if telemetryListener.running {
-						dt, dtIndex, ok := telemetryListener.LastDatagram()
+						dt, _, ok := telemetryListener.LastDatagram()
 						if ok {
-							lastSent := track.List[i]
-							lastSentInput := lastSent.Input
+							// Actually, it takes 3-4 frames for sent Input to be received as Real!!!
+							prevSentInput := track.List[i-4].Input
 							lastRealInput := dt.Input
 
-							telemetryStatus = fmt.Sprintf(", sent %.6f sec [%.6f %.6f %.6f %.6f] real %.6f sec %d. [%.6f %.6f %.6f %.6f]",
-								lastSent.Timestamp, lastSentInput[0], lastSentInput[1], lastSentInput[2], lastSentInput[3],
-								dt.Timestamp, dtIndex, lastRealInput[0], lastRealInput[1], lastRealInput[2], lastRealInput[3])
+							telemetryStatus = fmt.Sprintf(", %s %s %s\r\n",
+								vectorPrint("sent", prevSentInput),
+								vectorPrint("real", lastRealInput),
+								vectorPrint("diff", vectorDiff(prevSentInput, lastRealInput)))
 						}
 					}
 
@@ -290,6 +291,18 @@ func main() {
 	fmt.Println("\r\nUnregister, disconnect and release")
 
 	drone.Close()
+}
+
+func vectorPrint(name string, v [4]float32) string {
+	return fmt.Sprintf("%s [%+.6f %+.6f %+.6f %+.6f]", name, v[0], v[1], v[2], v[3])
+}
+
+func vectorDiff(v1 [4]float32, v2 [4]float32) [4]float32 {
+	diff := [4]float32{}
+	for i := range v1 {
+		diff[i] = v1[i] - v2[i]
+	}
+	return diff
 }
 
 func p(millis int) {
