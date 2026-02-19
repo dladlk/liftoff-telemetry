@@ -239,7 +239,7 @@ func main() {
 						}
 					}
 
-					return fmt.Sprintf("%s %d of %d - %.0f%% in %.2f s, track dur %.2f s, diff %.2f s, skipped %d frames%s", prefix, i+1, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount, telemetryStatus)
+					return fmt.Sprintf("%s %5d of %5d - %3.0f%% in %5.2f s, track dur %5.2f s, diff %5.2f s, skipped %2d frames%s", prefix, i+1, len(track.List), progressPercent, durationSec, simulationDurationSec, diff, skipFramesCount, telemetryStatus)
 				}
 
 				for i, c := range track.List {
@@ -277,7 +277,7 @@ func main() {
 			if telemetryListener.running {
 				d, datagramIndex, ok := telemetryListener.LastDatagram()
 				if ok {
-					lastTelemetry = fmt.Sprintf("[%d] %.6f %.6f %.6f %.6f", datagramIndex, d.Input[0], d.Input[1], d.Input[2], d.Input[3])
+					lastTelemetry = vectorPrint(fmt.Sprintf("[%5d]", datagramIndex), d.Input)
 				} else {
 					lastTelemetry = "Nothing"
 				}
