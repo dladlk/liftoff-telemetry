@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -12,11 +12,11 @@ import (
 )
 
 type Writer struct {
-	logFile     *os.File
-	binWriteBuf *bytes.Buffer
-	binFormat   bool
-	config      *Config
-	lotConfig   *lot_config.LiftoffTelemetryConfig
+	logWriter *bufio.Writer
+	logFile   *os.File
+	binFormat bool
+	config    *Config
+	lotConfig *lot_config.LiftoffTelemetryConfig
 }
 
 func (t *Writer) Start(config *Config, lotConfig *lot_config.LiftoffTelemetryConfig) {
@@ -34,8 +34,8 @@ func (t *Writer) Start(config *Config, lotConfig *lot_config.LiftoffTelemetryCon
 		log.Fatalf("Failed to create log file %s: %v", writeLogToFile, err)
 	}
 	t.logFile = logFile
+	t.logWriter = bufio.NewWriter(logFile)
 	t.writeHeader()
-	t.binWriteBuf = new(bytes.Buffer)
 }
 
 func (t *Writer) Restart() {
@@ -45,48 +45,47 @@ func (t *Writer) Restart() {
 
 func (t *Writer) Close() {
 	log.Printf("Session is written to file %s", t.logFile.Name())
+	t.logWriter.Flush()
 	t.logFile.Close()
 }
 
 func (t *Writer) writeHeader() {
-	var headerBuffer bytes.Buffer // Declare a bytes.Buffer
+	t.logWriter.WriteString("LOTv1:")
 	for i, name := range t.lotConfig.StreamFormatNames {
 		if i > 0 {
-			headerBuffer.WriteString(",")
+			t.logWriter.WriteString(",")
 		}
-		headerBuffer.WriteString(name)
+		t.logWriter.WriteString(name)
 	}
-	headerBuffer.WriteString("\n")
-	t.logFile.Write(headerBuffer.Bytes())
+	t.logWriter.WriteString("\n")
 }
 
 func (t *Writer) Write(cur *lot_config.Datagram, curSession *Trip) {
 	if t.binFormat {
 		for _, f := range t.lotConfig.StreamFormats {
-			t.binWriteBuf.Reset()
 			switch f {
 			case lot_config.Timestamp:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Timestamp)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Timestamp)
 			case lot_config.Position:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Position)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Position)
 			case lot_config.Attitude:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Attitude)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Attitude)
 			case lot_config.Velocity:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Velocity)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Velocity)
 			case lot_config.Gyro:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Gyro)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Gyro)
 			case lot_config.Input:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Input)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Input)
 			case lot_config.Battery:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Battery)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Battery)
 			case lot_config.MotorRPM:
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.Motors)
-				binary.Write(t.binWriteBuf, binary.LittleEndian, cur.MotorRPM)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.Motors)
+				binary.Write(t.logWriter, binary.LittleEndian, cur.MotorRPM)
 			}
-			t.logFile.Write(t.binWriteBuf.Bytes())
 		}
+		t.logWriter.WriteByte('\n')
 	} else {
-		fmt.Fprintf(t.logFile, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Index, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
+		fmt.Fprintf(t.logWriter, "%v,%v,%v,%v,%v,%v,%v,%v,%v\n", curSession.Index, curSession.Events, cur.Timestamp, cur.Position, cur.Attitude, cur.Velocity, cur.Gyro, cur.Input, cur.MotorRPM)
 	}
 
 }

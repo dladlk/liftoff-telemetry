@@ -34,13 +34,17 @@ func (t *Track) Open(path string) error {
 		return errors.New("Failed to read first line as header")
 	}
 	header = strings.TrimSpace(header)
+	versionEnd := strings.Index(header, ":")
+	if versionEnd > 0 {
+		header = header[versionEnd+1:]
+	}
 	t.fields = lot_config.ParseStreamDataTypeFormats(strings.Split(header, ","))
 
 	blockLength := lot_config.CalculateBlockLength(t.fields)
 
 	fmt.Printf("File header: %s, block length: %d\r\n", header, blockLength)
 
-	buffer := make([]byte, blockLength)
+	buffer := make([]byte, blockLength+1)
 
 	blocks := 0
 
@@ -52,12 +56,15 @@ func (t *Track) Open(path string) error {
 			}
 			return err
 		}
-		if n != int(blockLength) {
-			return fmt.Errorf("Expected to read %d bytes, but read only %d", blockLength, n)
+		if n != int(blockLength)+1 {
+			return fmt.Errorf("Expected to read %d bytes, but read %d", blockLength, n)
+		}
+		if buffer[n-1] != '\n' {
+			return fmt.Errorf("Expected block %d to finish with line break, but received %d", blockLength, buffer[n-1])
 		}
 		blocks++
 		datagram := lot_config.Datagram{}
-		datagram.ParseDatagram(bytes.NewReader(buffer[:n]), &t.fields)
+		datagram.ParseDatagram(bytes.NewReader(buffer[:n-1]), &t.fields)
 
 		t.List = append(t.List, datagram)
 	}
