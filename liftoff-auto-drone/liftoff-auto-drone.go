@@ -12,6 +12,7 @@ import (
 	"atomicgo.dev/keyboard/keys"
 
 	track "github.com/dladlk/liftoff-auto-drone/track"
+	vector "github.com/dladlk/liftoff-auto-drone/vector"
 )
 
 // Manual calibration:
@@ -235,9 +236,9 @@ func main() {
 							lastRealInput := dt.Input
 
 							telemetryStatus = fmt.Sprintf(", %s %s %s\r\n",
-								vectorPrint("sent", prevSentInput),
-								vectorPrint("real", lastRealInput),
-								vectorPrint("diff", vectorDiff(prevSentInput, lastRealInput)))
+								vector.VectorPrint("sent", prevSentInput),
+								vector.VectorPrint("real", lastRealInput),
+								vector.VectorPrint("diff", vector.VectorDiff(prevSentInput, lastRealInput)))
 						}
 					}
 
@@ -279,7 +280,7 @@ func main() {
 			if telemetryListener.running {
 				d, datagramIndex, ok := telemetryListener.LastDatagram()
 				if ok {
-					lastTelemetry = vectorPrint(fmt.Sprintf("[%5d]", datagramIndex), d.Input)
+					lastTelemetry = vector.VectorPrint(fmt.Sprintf("[%5d]", datagramIndex), d.Input)
 				} else {
 					lastTelemetry = "Nothing"
 				}
@@ -293,18 +294,6 @@ func main() {
 	fmt.Println("\r\nUnregister, disconnect and release")
 
 	drone.Close()
-}
-
-func vectorPrint(name string, v [4]float32) string {
-	return fmt.Sprintf("%s [% .6f % .6f % .6f % .6f]", name, v[0], v[1], v[2], v[3])
-}
-
-func vectorDiff(v1 [4]float32, v2 [4]float32) [4]float32 {
-	diff := [4]float32{}
-	for i := range v1 {
-		diff[i] = v1[i] - v2[i]
-	}
-	return diff
 }
 
 func p(millis int) {
