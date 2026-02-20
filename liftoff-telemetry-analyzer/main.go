@@ -23,6 +23,10 @@ func main() {
 	}
 	for _, path := range flag.Args() {
 		t := track.Track{}
-		t.Open(path)
+		err := t.Open(path)
+		if err != nil {
+			fmt.Printf("Failed to read track file %s: %v", path, err)
+			os.Exit(1)
+		}
 	}
 }
