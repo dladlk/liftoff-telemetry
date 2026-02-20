@@ -1,4 +1,4 @@
-package main
+package track
 
 import (
 	"bufio"
@@ -16,8 +16,8 @@ type Track struct {
 	path   string
 	fields []lot_config.StreamDataType
 	List   []lot_config.Datagram
-	minTs  float32
-	maxTs  float32
+	MinTs  float32
+	MaxTs  float32
 }
 
 func (t *Track) Open(path string) error {
@@ -68,9 +68,9 @@ func (t *Track) Open(path string) error {
 
 		t.List = append(t.List, datagram)
 	}
-	t.minTs = t.List[0].Timestamp
-	t.maxTs = t.List[len(t.List)-1].Timestamp
-	fmt.Printf("Loaded %d blocks, min ts %.2f sec, max ts %.2f sec\n", blocks, t.minTs, t.maxTs)
+	t.MinTs = t.List[0].Timestamp
+	t.MaxTs = t.List[len(t.List)-1].Timestamp
+	fmt.Printf("Loaded %d blocks, min ts %.2f sec, max ts %.2f sec\n", blocks, t.MinTs, t.MaxTs)
 
 	return nil
 }

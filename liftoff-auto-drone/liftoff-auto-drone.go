@@ -10,6 +10,8 @@ import (
 
 	"atomicgo.dev/keyboard"
 	"atomicgo.dev/keyboard/keys"
+
+	track "github.com/dladlk/liftoff-auto-drone/track"
 )
 
 // Manual calibration:
@@ -210,7 +212,7 @@ func main() {
 			filepath := fmt.Sprintf("track_%d.bin", modeIndex)
 			trackRunning = true
 			go func() (bool, error) {
-				track := Track{}
+				track := track.Track{}
 				startTime := time.Now()
 				err := track.Open(filepath)
 				if err != nil {
@@ -220,7 +222,7 @@ func main() {
 				skipFramesCount := 0
 				progressPrint := func(prefix string, i int) string {
 					durationSec := float64(time.Since(startTime).Round(time.Millisecond).Milliseconds()) / 1000.0
-					simulationDurationSec := track.List[i].Timestamp - track.minTs
+					simulationDurationSec := track.List[i].Timestamp - track.MinTs
 					diff := durationSec - float64(simulationDurationSec)
 					progressPercent := float32(i+1) / float32(len(track.List)) * 100.0
 
@@ -253,7 +255,7 @@ func main() {
 						return false, nil
 					default:
 						durationSec := float32(time.Since(startTime).Microseconds()) / 1000_000
-						simulationDurationSec := c.Timestamp - track.minTs
+						simulationDurationSec := c.Timestamp - track.MinTs
 						diff := simulationDurationSec - durationSec
 						if diff > 0.000001 {
 							time.Sleep(time.Duration(diff*1000_000) * time.Microsecond)

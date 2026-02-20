@@ -1,10 +1,10 @@
-package main_test
+package track_test
 
 import (
 	"fmt"
 	"testing"
 
-	main "github.com/dladlk/liftoff-auto-drone"
+	track "github.com/dladlk/liftoff-auto-drone/track"
 )
 
 func TestTrack_Open(t *testing.T) {
@@ -18,7 +18,7 @@ func TestTrack_Open(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := main.Track{}
+			tr := track.Track{}
 			gotErr := tr.Open(tt.path)
 			if gotErr != nil {
 				if !tt.wantErr {
