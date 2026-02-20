@@ -38,7 +38,7 @@ func main() {
 				zeroRPMCount++
 				continue
 			}
-			fmt.Println(vector.VectorPrint("Attitude", d.Attitude), vector.VectorPrintGyro("Gyro", d.Gyro), vector.VectorPrintByDecimal("RPM", [4]float32(d.MotorRPM), 1))
+			fmt.Println(vector.VectorPrintTabbed("Attitude", d.Attitude), vector.VectorPrint3("Degrees", vector.AttentionQuaternionToEulerDegrees(d.Attitude)), vector.VectorPrint3("Gyro", d.Gyro), vector.VectorPrintByDecimal("RPM", [4]float32(d.MotorRPM), 1))
 			printCount++
 			if printCount >= printLimit {
 				break
