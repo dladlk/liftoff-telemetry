@@ -11,15 +11,15 @@ import (
 // https://steamcommunity.com/sharedfiles/filedetails/?id=3160488434
 
 type Datagram struct {
-	Timestamp float32    `desc:"seconds"`
-	Position  [3]float32 `desc:"3d coordinate, X, Y, Z"`
-	Attitude  [4]float32 `desc:"X, Y, Z, W"`
-	Velocity  [3]float32 `desc:"meters/second, X, Y, Z (world space, https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )"`
-	Gyro      [3]float32 `desc:"angular velocity rates - pitch, roll, yaw in degrees/second"`
-	Input     [4]float32 `desc:"throttle, yaw, pitch, roll"`
+	Timestamp float32    `desc:"current timestamp of the drone's flight, seconds. This value is reset to zero when the drone is reset"`
+	Position  [3]float32 `desc:"world position as a 3D coordinate, meters."`
+	Attitude  [4]float32 `desc:"world attitude as a quaternion X, Y, Z, W, [-1,1]. Convert to degress with vector.AttentionQuaternionToEulerDegrees"`
+	Velocity  [3]float32 `desc:"linear velocity as a 3D vector X, Y, Z in world-space, meters/second. To get velocity in local-space, use Attitude and https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )"`
+	Gyro      [3]float32 `desc:"angular velocity rates, represented with three components in the order: pitch, roll and yaw. The unit scale is in degrees/second"`
+	Input     [4]float32 `desc:"input at that time, represented with four components in the following order: throttle, yaw, pitch and roll"`
 	Battery   [2]float32 `desc:"remaining voltage and charge percentage"`
 	Motors    byte       `desc:"number of motors"`
-	MotorRPM  []float32  `desc:"rpm per each motor"`
+	MotorRPM  []float32  `desc:"rpm per each motor. The sequence of motors for a quadcopter in Liftoff is as follows: left front, right front, left back, right back"`
 }
 
 func (d Datagram) DistanceFrom(firstEvent *Datagram) float64 {

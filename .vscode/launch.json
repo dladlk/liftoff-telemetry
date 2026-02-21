@@ -18,7 +18,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/liftoff-telemetry-analyzer",
-            "args": ["${workspaceFolder}/liftoff_telemetry_20260219_222206.bin"]
+            "args": ["${workspaceFolder}/liftoff_telemetry_20260219_222057.bin"]
         }        
     ]
 }
