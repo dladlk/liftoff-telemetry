@@ -72,14 +72,35 @@ type Quaternion struct {
 	a, b, c, d float32
 }
 
+func (q Quaternion) ToAttitude() [4]float32 {
+	return [4]float32{q.b, q.c, q.d, q.a}
+}
+
 // Conjugated quaternion - https://en.wikipedia.org/wiki/Quaternion#Conjugation,_the_norm,_and_reciprocal
 func (q Quaternion) ToConjugated() Quaternion {
 	return Quaternion{q.a, -q.b, -q.c, -q.d}
 }
 
 // Attitude form for quaternion - x,y,z,w - corresponds to b,c,d,a in Quaternion definition from wiki
-func AttentionToQuaternion(att []float32) Quaternion {
+func AttitudeToQuaternion(att []float32) Quaternion {
 	return Quaternion{a: att[3], b: att[0], c: att[1], d: att[2]}
+}
+
+func EulerAnglesToQuaternion(x_phi_roll, y_theta_pitch, z_psi_yaw float64) Quaternion {
+	c1 := math.Cos(x_phi_roll / 2)
+	s1 := math.Sin(x_phi_roll / 2)
+	c2 := math.Cos(y_theta_pitch / 2)
+	s2 := math.Sin(y_theta_pitch / 2)
+	c3 := math.Cos(z_psi_yaw / 2)
+	s3 := math.Sin(z_psi_yaw / 2)
+
+	q := Quaternion{}
+	q.a = float32(c1*c2*c3 + s1*s2*s3)
+	q.b = float32(s1*c2*c3 - c1*s2*s3)
+	q.c = float32(c1*s2*c3 + s1*c2*s3)
+	q.d = float32(c1*c2*s3 - s1*s2*c3)
+
+	return q
 }
 
 // Hamiltonian product of x and y (see https://en.wikipedia.org/wiki/Quaternion#Hamilton_product)
@@ -92,6 +113,7 @@ func QuaternionMultiplication(n1, n2 Quaternion) Quaternion {
 	}
 }
 
+// Converts linear velocity as a 3D vector X, Y, Z in world-space, meters/second to local-space.
 // To get velocity in local-space, use Attitude and https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )
 // Looks like the person who wrote it had around 4,5 seconds to make the documentation, so did not bother to explain what exactly should be done.
 // Let's suppose that conversion is done by 2 consequent quaternion multiplications of:
@@ -100,7 +122,7 @@ func QuaternionMultiplication(n1, n2 Quaternion) Quaternion {
 // Result formula:
 // v′=qvq∗=(q0,q1,q2,q3)(0,v1,v2,v3)(q0,−q1,−q2,−q3)=(w,x,y,z)
 func VelocityWorldSpaceToLocalSpace(velocity [3]float32, attitude [4]float32) [3]float32 {
-	q := AttentionToQuaternion(attitude[:])
+	q := AttitudeToQuaternion(attitude[:])
 	v := Quaternion{a: 0, b: velocity[0], c: velocity[1], d: velocity[2]}
 	qconj := q.ToConjugated()
 
