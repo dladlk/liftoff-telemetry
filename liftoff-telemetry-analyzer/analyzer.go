@@ -50,7 +50,12 @@ func main() {
 			}
 			if printCount <= printLimit {
 				printCount++
-				fmt.Println(vector.VectorPrintTabbed("Attitude", d.Attitude), vector.VectorPrint3("Degrees", vector.AttentionQuaternionToEulerDegrees(d.Attitude)), vector.VectorPrint3("Gyro", d.Gyro), vector.VectorPrintByDecimal("RPM", [4]float32(d.MotorRPM), 1))
+				fmt.Println(vector.VectorPrintTabbed("Attitude", d.Attitude),
+					vector.VectorPrint3Short("Degrees", vector.AttitudeQuaternionToEulerDegrees(d.Attitude)),
+					vector.VectorPrint3Long("Velocity World", d.Velocity),
+					vector.VectorPrint3Long("Velocity Local", vector.VelocityWorldSpaceToLocalSpace(d.Velocity, d.Attitude)),
+					vector.VectorPrint3Short("Gyro", d.Gyro),
+					vector.VectorPrintByDecimal("RPM", [4]float32(d.MotorRPM), 1))
 			} else {
 				if !*doMinMax {
 					break
