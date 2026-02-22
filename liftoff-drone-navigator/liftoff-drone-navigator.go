@@ -579,8 +579,8 @@ func (c *Controller) Run(ctx context.Context) error {
 		case now := <-ticker.C:
 			tel, err := c.tprov.Read(ctx)
 			if err != nil {
-				// In a real app, handle timeouts/non-fatal errors more gently
-				return fmt.Errorf("telemetry read: %w", err)
+				fmt.Printf("telemetry read: %v\n", err)
+				continue
 			}
 			sp, err := c.sprov.Desired(ctx, now)
 			if err != nil {
