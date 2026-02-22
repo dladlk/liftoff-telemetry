@@ -104,7 +104,10 @@ func rToEuler(R Mat3) (roll, pitch, yaw float64) {
 	return
 }
 
-func quatToR(w, x, y, z float64) Mat3 {
+// Old name: quatToR
+// Defines Quaternion-derived rotation matrix R
+// https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix
+func quaternionToRotationMatrix(w, x, y, z float64) Mat3 {
 	// unit quaternion expected
 	xx, yy, zz := x*x, y*y, z*z
 	xy, xz, yz := x*y, x*z, y*z
@@ -116,6 +119,7 @@ func quatToR(w, x, y, z float64) Mat3 {
 	}
 }
 
+// maps a skew-symmetric matrix to a vector to calculate attitude error vector for PD controller
 func vee(S Mat3) Vec3 {
 	return Vec3{
 		(S[2][1] - S[1][2]) * 0.5,
@@ -140,11 +144,11 @@ func wrapPi(a float64) float64 {
 
 // Telemetry: world ENU (m, m/s), attitude as body->world rotation, body rates (rad/s)
 type Telemetry struct {
-	Time  time.Time
-	P     Vec3 // position (world, m)
-	V     Vec3 // velocity (world, m/s)
-	R     Mat3 // rotation (body->world)
-	Omega Vec3 // body rates [p q r], rad/s
+	Time     time.Time
+	Position Vec3 // position (world, m)
+	Velocity Vec3 // velocity (world, m/s)
+	Rotation Mat3 // rotation (body->world)
+	Omega    Vec3 // body rates [p q r], rad/s
 }
 type TelemetryProvider interface {
 	Read(ctx context.Context) (Telemetry, bool, error)
@@ -152,12 +156,12 @@ type TelemetryProvider interface {
 
 // Desired setpoint: position/velocity/acceleration and yaw (heading)
 type Setpoint struct {
-	Pd     Vec3
-	Vd     Vec3
-	Aff    Vec3
-	PsiD   float64 // desired yaw (rad)
-	HasVd  bool
-	HasAff bool
+	PositionDesired        Vec3
+	VelocityDesired        Vec3
+	AccelerationDesired    Vec3    // desired acceleration, by some reason it was called aff originally
+	PsiD                   float64 // desired yaw (rad)
+	HasVelocityDesired     bool
+	HasAccelerationDesired bool
 }
 type SetpointProvider interface {
 	Desired(ctx context.Context, now time.Time) (Setpoint, error)
@@ -190,12 +194,12 @@ func (l *LiftoffTelemetryProvider) Read(ctx context.Context) (Telemetry, bool, e
 	if !ok {
 		return Telemetry{}, ok, nil
 	}
-	R := quatToR(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
+	R := quaternionToRotationMatrix(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
 	tel := Telemetry{
-		Time: time.Now(),
-		P:    Vec3{float64(datagram.Position[0]), float64(datagram.Position[1]), float64(datagram.Position[2])},
-		V:    Vec3{float64(datagram.Velocity[0]), float64(datagram.Velocity[1]), float64(datagram.Velocity[2])},
-		R:    R,
+		Time:     time.Now(),
+		Position: Vec3{float64(datagram.Position[0]), float64(datagram.Position[1]), float64(datagram.Position[2])},
+		Velocity: Vec3{float64(datagram.Velocity[0]), float64(datagram.Velocity[1]), float64(datagram.Velocity[2])},
+		Rotation: R,
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
 		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
 	}
@@ -253,7 +257,7 @@ type ControllerConfig struct {
 }
 
 type ControllerState struct {
-	IntEP                         Vec3
+	IntegralPositionalError       Vec3
 	lastL, lastLH, lastRV, lastRH float64
 }
 
@@ -278,28 +282,28 @@ func NewController(cfg ControllerConfig, t TelemetryProvider, s SetpointProvider
 // ================== Control blocks ==================
 //
 
-// 1) Outer (position) loop to desired world acceleration (a_c)
-func (c *Controller) positionLoop(p, v Vec3, sp Setpoint, dt float64) (a_c Vec3) {
-	vd := sp.Vd
-	if !sp.HasVd {
-		vd = Vec3{0, 0, 0}
+// 1) Outer (position) loop to desired world acceleration
+func (c *Controller) positionLoop(position, velocity Vec3, sp Setpoint, dt float64) (acceleration Vec3) {
+	velocityDesired := sp.VelocityDesired
+	if !sp.HasVelocityDesired {
+		velocityDesired = Vec3{0, 0, 0}
 	}
-	aff := sp.Aff
-	if !sp.HasAff {
+	aff := sp.AccelerationDesired
+	if !sp.HasAccelerationDesired {
 		aff = Vec3{0, 0, 0}
 	}
 
-	ep := sub(sp.Pd, p)
-	ev := sub(vd, v)
+	errorPosition := sub(sp.PositionDesired, position)
+	errorVelocity := sub(velocityDesired, velocity)
 
 	// integrate with clamp (anti-windup)
 	il := c.cfg.Pos.IntLimit
-	c.state.IntEP = clampVec3(add(c.state.IntEP, mul(ep, dt)), -il, il)
+	c.state.IntegralPositionalError = clampVec3(add(c.state.IntegralPositionalError, mul(errorPosition, dt)), -il, il)
 
-	a_c = Vec3{
-		aff[0] + c.cfg.Pos.Kp[0]*ep[0] + c.cfg.Pos.Kv[0]*ev[0] + c.cfg.Pos.Ki[0]*c.state.IntEP[0],
-		aff[1] + c.cfg.Pos.Kp[1]*ep[1] + c.cfg.Pos.Kv[1]*ev[1] + c.cfg.Pos.Ki[1]*c.state.IntEP[1],
-		aff[2] + c.cfg.Pos.Kp[2]*ep[2] + c.cfg.Pos.Kv[2]*ev[2] + c.cfg.Pos.Ki[2]*c.state.IntEP[2],
+	acceleration = Vec3{
+		aff[0] + c.cfg.Pos.Kp[0]*errorPosition[0] + c.cfg.Pos.Kv[0]*errorVelocity[0] + c.cfg.Pos.Ki[0]*c.state.IntegralPositionalError[0],
+		aff[1] + c.cfg.Pos.Kp[1]*errorPosition[1] + c.cfg.Pos.Kv[1]*errorVelocity[1] + c.cfg.Pos.Ki[1]*c.state.IntegralPositionalError[1],
+		aff[2] + c.cfg.Pos.Kp[2]*errorPosition[2] + c.cfg.Pos.Kv[2]*errorVelocity[2] + c.cfg.Pos.Ki[2]*c.state.IntegralPositionalError[2],
 	}
 	return
 }
@@ -401,10 +405,10 @@ func toInt16Uncentered01(x float64) int16 {
 
 func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float64) (lv, lh, rv, rh int16) {
 	// current yaw
-	_, _, yawCur := rToEuler(tel.R)
+	_, _, yawCur := rToEuler(tel.Rotation)
 
 	// desired body rates from attitude error
-	omegaCmd := c.desiredBodyRates(tel.R, Rd, yawCur, sp.PsiD)
+	omegaCmd := c.desiredBodyRates(tel.Rotation, Rd, yawCur, sp.PsiD)
 
 	// normalize to [-1..1]
 	rhNorm := omegaCmd[0] / c.cfg.Rates.MaxRollRate
@@ -467,9 +471,6 @@ func (c *Controller) Run(ctx context.Context) error {
 	dt := 1.0 / c.cfg.Hz
 	ticker := time.NewTicker(time.Duration(1e9 / c.cfg.Hz))
 	defer ticker.Stop()
-
-	fmt.Println("Controller running. Make sure Liftoff is streaming telemetry")
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -489,7 +490,7 @@ func (c *Controller) Run(ctx context.Context) error {
 			}
 
 			// 1) Position loop -> desired acceleration
-			a_c := c.positionLoop(tel.P, tel.V, sp, dt)
+			a_c := c.positionLoop(tel.Position, tel.Velocity, sp, dt)
 
 			// 2) Desired attitude from yaw + thrust direction
 			Rd, T := attitudeAndThrustFromAccelYaw(a_c, c.cfg.G, sp.PsiD, c.cfg.Mass)
@@ -513,27 +514,25 @@ type MockTelemetry struct{}
 
 func (m *MockTelemetry) Read(ctx context.Context) (Telemetry, error) {
 	return Telemetry{
-		Time:  time.Now(),
-		P:     Vec3{0, 0, 0},
-		V:     Vec3{0, 0, 0},
-		R:     eulerToR(0, 0, 0),
-		Omega: Vec3{0, 0, 0},
+		Time:     time.Now(),
+		Position: Vec3{0, 0, 0},
+		Velocity: Vec3{0, 0, 0},
+		Rotation: eulerToR(0, 0, 0),
+		Omega:    Vec3{0, 0, 0},
 	}, nil
 }
 
 type MockSetpoint struct {
-	p    Vec3
-	yawD float64
 }
 
 func (m *MockSetpoint) Desired(ctx context.Context, now time.Time) (Setpoint, error) {
 	return Setpoint{
-		Pd:     m.p,
-		Vd:     Vec3{0, 0, 0},
-		Aff:    Vec3{0, 0, 0},
-		PsiD:   m.yawD,
-		HasVd:  true,
-		HasAff: true,
+		PositionDesired:        Vec3{2.0, 1.0, 1.5},  // move to (x=2, y=1, z=1.5)
+		VelocityDesired:        Vec3{0, 0, 0},        // stop there
+		AccelerationDesired:    Vec3{0, 0, 0},        // no feedforward
+		PsiD:                   25 * math.Pi / 180.0, // face 25 degree yaw
+		HasVelocityDesired:     true,
+		HasAccelerationDesired: true,
 	}, nil
 }
 
@@ -587,10 +586,7 @@ func main() {
 	}
 	tel.TelemetryListener.Toggle()
 
-	sp := &MockSetpoint{
-		p:    Vec3{2.0, 1.0, 1.5},
-		yawD: 25 * math.Pi / 180.0,
-	}
+	sp := &MockSetpoint{}
 	joy := &MockJoystick{}
 
 	ctrl := NewController(cfg, tel, sp, joy)
