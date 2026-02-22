@@ -202,7 +202,7 @@ func parseLfPacket(buf []byte) (LfPacket, bool) {
 
 	ok = rd.f32(&r.Timestamp) &&
 		rd.f32(&r.PosX) && rd.f32(&r.PosY) && rd.f32(&r.PosZ) &&
-		rd.f32(&r.RotW) && rd.f32(&r.RotX) && rd.f32(&r.RotY) && rd.f32(&r.RotZ) &&
+		rd.f32(&r.RotX) && rd.f32(&r.RotY) && rd.f32(&r.RotZ) && rd.f32(&r.RotW) &&
 		rd.f32(&r.VelX) && rd.f32(&r.VelY) && rd.f32(&r.VelZ) &&
 		rd.f32(&r.GyroP) && rd.f32(&r.GyroR) && rd.f32(&r.GyroY) &&
 		rd.f32(&r.InT) && rd.f32(&r.InY) && rd.f32(&r.InP) && rd.f32(&r.InR) &&
