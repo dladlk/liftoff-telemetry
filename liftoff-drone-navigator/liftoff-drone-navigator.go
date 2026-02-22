@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math"
-	"net"
-	"os"
 	"time"
+
+	track "github.com/dladlk/liftoff-auto-drone/track"
 )
 
 //
@@ -148,7 +147,7 @@ type Telemetry struct {
 	Omega Vec3 // body rates [p q r], rad/s
 }
 type TelemetryProvider interface {
-	Read(ctx context.Context) (Telemetry, error)
+	Read(ctx context.Context) (Telemetry, bool, error)
 }
 
 // Desired setpoint: position/velocity/acceleration and yaw (heading)
@@ -178,130 +177,29 @@ type JoystickActuator interface {
 	SendJoystick(ctx context.Context, leftVert, leftHoriz, rightVert, rightHoriz int16) error
 }
 
-/* ============================
-   Telemetry (Liftoff UDP)
-   ============================ */
-
-type LfPacket struct {
-	Timestamp              float32
-	PosX, PosY, PosZ       float32
-	RotW, RotX, RotY, RotZ float32
-	VelX, VelY, VelZ       float32
-	GyroP, GyroR, GyroY    float32
-	InT, InY, InP, InR     float32
-	BatPct, BatVolt        float32
-	MotorCount             uint8
-	MotorRPM               []float32 // len=MotorCount
+type LiftoffTelemetryProvider struct {
+	TelemetryListener *track.TelemetryListener
 }
 
-// parseLfPacket assumes the "StreamFormat" as in the sample config below.
-func parseLfPacket(buf []byte) (LfPacket, bool) {
-	r := LfPacket{}
-	rd := makeReader(buf)
-	var ok bool
-
-	ok = rd.f32(&r.Timestamp) &&
-		rd.f32(&r.PosX) && rd.f32(&r.PosY) && rd.f32(&r.PosZ) &&
-		rd.f32(&r.RotX) && rd.f32(&r.RotY) && rd.f32(&r.RotZ) && rd.f32(&r.RotW) &&
-		rd.f32(&r.VelX) && rd.f32(&r.VelY) && rd.f32(&r.VelZ) &&
-		rd.f32(&r.GyroP) && rd.f32(&r.GyroR) && rd.f32(&r.GyroY) &&
-		rd.f32(&r.InT) && rd.f32(&r.InY) && rd.f32(&r.InP) && rd.f32(&r.InR) &&
-		rd.f32(&r.BatPct) && rd.f32(&r.BatVolt) &&
-		rd.u8(&r.MotorCount)
+func (l *LiftoffTelemetryProvider) Read(ctx context.Context) (Telemetry, bool, error) {
+	if !l.TelemetryListener.Running {
+		fmt.Printf("Listener not running...\n")
+		return Telemetry{}, false, nil
+	}
+	datagram, _, ok := l.TelemetryListener.LastDatagram()
 	if !ok {
-		return LfPacket{}, false
+		return Telemetry{}, ok, nil
 	}
-
-	if int(r.MotorCount) < 0 || int(r.MotorCount) > 16 { // sanity
-		return LfPacket{}, false
-	}
-	r.MotorRPM = make([]float32, int(r.MotorCount))
-	for i := 0; i < int(r.MotorCount); i++ {
-		if !rd.f32(&r.MotorRPM[i]) {
-			return LfPacket{}, false
-		}
-	}
-	return r, true
-}
-
-type reader struct {
-	b   []byte
-	off int
-}
-
-func makeReader(b []byte) *reader { return &reader{b: b} }
-func (r *reader) f32(out *float32) bool {
-	if r.off+4 > len(r.b) {
-		return false
-	}
-	*out = math.Float32frombits(binary.LittleEndian.Uint32(r.b[r.off:]))
-	r.off += 4
-	return true
-}
-func (r *reader) u8(out *uint8) bool {
-	if r.off+1 > len(r.b) {
-		return false
-	}
-	*out = r.b[r.off]
-	r.off++
-	return true
-}
-
-/*
-============================
-
-	Liftoff UDP receiver
-	============================
-*/
-type LfUDP struct {
-	conn     *net.UDPConn
-	pktBytes int // expected packet size (optional; 0 = unknown)
-}
-
-func NewLfUDP(listen string, pktBytes int) (*LfUDP, error) {
-	addr, err := net.ResolveUDPAddr("udp", listen)
-	if err != nil {
-		return nil, err
-	}
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	if pktBytes > 0 {
-		// Keep only the latest frame in the OS UDP buffer (best-effort).
-		// See note: using a 1-packet buffer avoids lag. (Kernel may clamp.)
-		// Ref: Chisholm blog advice.
-		if err := conn.SetReadBuffer(pktBytes); err != nil {
-			fmt.Fprintf(os.Stderr, "warn: SetReadBuffer: %v\n", err)
-		}
-	}
-
-	return &LfUDP{conn: conn, pktBytes: pktBytes}, nil
-}
-
-func (l *LfUDP) Read(ctx context.Context) (Telemetry, error) {
-	// Large enough to cover common packets (≈ 4* (1+3+4+3+3+4+2) + 1 + 4*8 ≈ < 200 bytes for quad)
-	buf := make([]byte, 512)
-	l.conn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
-	n, _, err := l.conn.ReadFromUDP(buf)
-	if err != nil {
-		return Telemetry{}, err
-	}
-	pkt, ok := parseLfPacket(buf[:n])
-	if !ok {
-		return Telemetry{}, fmt.Errorf("bad liftoff packet size=%d", n)
-	}
-	R := quatToR(float64(pkt.RotW), float64(pkt.RotX), float64(pkt.RotY), float64(pkt.RotZ))
+	R := quatToR(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
 	tel := Telemetry{
 		Time: time.Now(),
-		P:    Vec3{float64(pkt.PosX), float64(pkt.PosY), float64(pkt.PosZ)},
-		V:    Vec3{float64(pkt.VelX), float64(pkt.VelY), float64(pkt.VelZ)},
+		P:    Vec3{float64(datagram.Position[0]), float64(datagram.Position[1]), float64(datagram.Position[2])},
+		V:    Vec3{float64(datagram.Velocity[0]), float64(datagram.Velocity[1]), float64(datagram.Velocity[2])},
 		R:    R,
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
-		Omega: Vec3{float64(pkt.GyroR), float64(pkt.GyroP), float64(pkt.GyroY)},
+		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
 	}
-	return tel, nil
+	return tel, true, nil
 }
 
 //
@@ -577,7 +475,10 @@ func (c *Controller) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case now := <-ticker.C:
-			tel, err := c.tprov.Read(ctx)
+			tel, ok, err := c.tprov.Read(ctx)
+			if !ok {
+				continue
+			}
 			if err != nil {
 				fmt.Printf("telemetry read: %v\n", err)
 				continue
@@ -680,16 +581,12 @@ func main() {
 			InvertYaw:   false,
 		},
 	}
-	const listen = "127.0.0.1:9001"
-	// Expected packet size (optional optimization): here we set an upper bound; kernel may round it.
-	const approxPacketBytes = 200
-	lf, err := NewLfUDP(listen, approxPacketBytes)
-	if err != nil {
-		fmt.Println("udp:", err)
-		return
-	}
 
-	tel := lf
+	tel := &LiftoffTelemetryProvider{
+		TelemetryListener: &track.TelemetryListener{},
+	}
+	tel.TelemetryListener.Toggle()
+
 	sp := &MockSetpoint{
 		p:    Vec3{2.0, 1.0, 1.5},
 		yawD: 25 * math.Pi / 180.0,
@@ -703,7 +600,8 @@ func main() {
 
 	// Run briefly for demo
 	go func() {
-		time.Sleep(120 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
+		fmt.Println("Stop controller after demo period")
 		cancel()
 	}()
 	if err := ctrl.Run(ctx); err != nil && err != context.Canceled {
