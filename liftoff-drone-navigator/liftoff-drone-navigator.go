@@ -592,16 +592,16 @@ func NewControllerConfig() ControllerConfig {
 			MaxYawRate:   3.0,
 		},
 		Throttle: ThrottleMap{
-			HoverStick:       0.5,  // hover mid-stick (uncentered mode)
-			Slope:            0.5,  // 50% stick per 100% thrust delta around hover
-			Centered:         true, // ACRO "M" style (unsprung throttle)
-			CenteredSpan:     1.0,  // used only if Centered=true
+			HoverStick:       0.5, // hover mid-stick (uncentered mode)
+			Slope:            0.5, // 50% stick per 100% thrust delta around hover
+			Centered:         true,
+			CenteredSpan:     1.0, // used only if Centered=true
 			Deadzone:         0.03,
 			RateLimitPerTick: 0.05,
 		},
 		Signs: OutputSigns{
 			InvertRoll:  false,
-			InvertPitch: false, // set true if forward stick should mean nose-down
+			InvertPitch: true, // set true if forward stick should mean nose-down
 			InvertYaw:   false,
 		},
 	}
