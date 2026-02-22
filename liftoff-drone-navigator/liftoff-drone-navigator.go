@@ -7,6 +7,8 @@ import (
 	"time"
 
 	track "github.com/dladlk/liftoff-auto-drone/track"
+	vector "github.com/dladlk/liftoff-auto-drone/vector"
+	lot_config "github.com/dladlk/liftoff-telemetry/data"
 )
 
 //
@@ -26,6 +28,9 @@ func cross(a, b Vec3) Vec3 {
 		a[2]*b[0] - a[0]*b[2],
 		a[0]*b[1] - a[1]*b[0],
 	}
+}
+func float32SliceToVec3(s [3]float32) Vec3 {
+	return Vec3{float64(s[0]), float64(s[1]), float64(s[2])}
 }
 func norm(a Vec3) float64 { return math.Sqrt(dot(a, a)) }
 func normalize(a Vec3) Vec3 {
@@ -523,14 +528,16 @@ func (m *MockTelemetry) Read(ctx context.Context) (Telemetry, error) {
 }
 
 type MockSetpoint struct {
+	PositionDesired Vec3
+	PsiD            float64
 }
 
 func (m *MockSetpoint) Desired(ctx context.Context, now time.Time) (Setpoint, error) {
 	return Setpoint{
-		PositionDesired:        Vec3{2.0, 1.0, 1.5},  // move to (x=2, y=1, z=1.5)
-		VelocityDesired:        Vec3{0, 0, 0},        // stop there
-		AccelerationDesired:    Vec3{0, 0, 0},        // no feedforward
-		PsiD:                   25 * math.Pi / 180.0, // face 25 degree yaw
+		PositionDesired:        m.PositionDesired,
+		VelocityDesired:        Vec3{0, 0, 0}, // stop there
+		AccelerationDesired:    Vec3{0, 0, 0}, // no feedforward
+		PsiD:                   m.PsiD,
 		HasVelocityDesired:     true,
 		HasAccelerationDesired: true,
 	}, nil
@@ -585,8 +592,26 @@ func main() {
 		TelemetryListener: &track.TelemetryListener{},
 	}
 	tel.TelemetryListener.Toggle()
+	var firstDatagram lot_config.Datagram
+	for {
+		dt, _, ok := tel.TelemetryListener.LastDatagram()
+		if ok {
+			fmt.Printf("Received %s\n", vector.VectorPrint3Short("initial position", dt.Position))
+			firstDatagram = *dt
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
-	sp := &MockSetpoint{}
+	desiredIncrement := Vec3{2.0, 1.0, 1.5} // move to (x=2, y=1, z=1.5) from first successful telemetry
+	positionDesired := add(float32SliceToVec3(firstDatagram.Position), desiredIncrement)
+
+	fmt.Printf("Navigate to position %v", positionDesired)
+
+	sp := &MockSetpoint{
+		PositionDesired: positionDesired,
+		PsiD:            0 * math.Pi / 180.0, // face 0 degree yaw
+	}
 	joy := &MockJoystick{}
 
 	ctrl := NewController(cfg, tel, sp, joy)
