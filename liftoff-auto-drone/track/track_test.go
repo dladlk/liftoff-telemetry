@@ -14,7 +14,7 @@ func TestTrack_Open(t *testing.T) {
 		path    string
 		wantErr bool
 	}{
-		{name: "Read file 6", path: "track_6.bin", wantErr: false},
+		{name: "Read file 6", path: "track_test.bintest", wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -29,11 +29,11 @@ func TestTrack_Open(t *testing.T) {
 			if tt.wantErr {
 				t.Fatal("Open() succeeded unexpectedly")
 			}
-			if len(tr.List) != 10327 {
+			if len(tr.List) != 225 {
 				t.Fatalf("Wrong number of rows read: %d", len(tr.List))
 			}
-			fmt.Printf("First:\t %+v", tr.List[0])
-			fmt.Printf("Last:\t %+v", tr.List[len(tr.List)-1])
+			fmt.Printf("First:\t %+v\n", tr.List[0])
+			fmt.Printf("Last:\t %+v\n", tr.List[len(tr.List)-1])
 		})
 	}
 }
