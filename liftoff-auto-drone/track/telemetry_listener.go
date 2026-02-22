@@ -1,4 +1,4 @@
-package main
+package track
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 )
 
 type TelemetryListener struct {
-	running        bool
+	Running        bool
 	lotConfig      lot_config.LiftoffTelemetryConfig
 	conn           *net.UDPConn
 	expected       int
@@ -21,7 +21,7 @@ type TelemetryListener struct {
 }
 
 func (t *TelemetryListener) Toggle() {
-	if !t.running {
+	if !t.Running {
 		lotConfig, err := lot_config.ReadLiftoffTelemetryConfig()
 		if err != nil {
 			log.Fatalf("Failed to read telemetry configuration: %v", err)
@@ -42,13 +42,13 @@ func (t *TelemetryListener) Toggle() {
 
 		expectedBlockLength := int(lot_config.CalculateBlockLength(lotConfig.StreamFormats))
 		t.expected = expectedBlockLength
-		t.running = true
+		t.Running = true
 
 		go func() {
 			buffer := make([]byte, expectedBlockLength)
 
 			for {
-				if !t.running {
+				if !t.Running {
 					fmt.Printf("Closed telemetry listener")
 					t.conn.Close()
 					break
@@ -75,7 +75,7 @@ func (t *TelemetryListener) Toggle() {
 
 		}()
 	} else {
-		t.running = false
+		t.Running = false
 		t.lastBytes = nil
 		t.lastBytesIndex = 0
 		log.Printf("\r\nStopped telemetry listener\n")
@@ -83,7 +83,7 @@ func (t *TelemetryListener) Toggle() {
 }
 
 func (t *TelemetryListener) LastDatagram() (*lot_config.Datagram, int, bool) {
-	if t.running {
+	if t.Running {
 		if t.lastBytesIndex > 0 {
 			var lastBytes []byte = make([]byte, t.expected)
 			t.mu.Lock()

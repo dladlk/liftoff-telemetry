@@ -73,7 +73,7 @@ func main() {
 
 	noopDrone := *doDryRun
 
-	telemetryListener := TelemetryListener{}
+	telemetryListener := track.TelemetryListener{}
 
 	left := Joystick{}
 	right := Joystick{}
@@ -228,7 +228,7 @@ func main() {
 					progressPercent := float32(i+1) / float32(len(track.List)) * 100.0
 
 					telemetryStatus := ""
-					if telemetryListener.running {
+					if telemetryListener.Running {
 						dt, _, ok := telemetryListener.LastDatagram()
 						if ok {
 							// Actually, it takes 3-4 frames for sent Input to be received as Real!!!
@@ -277,7 +277,7 @@ func main() {
 
 		default:
 			lastTelemetry := "not listening for telemtry"
-			if telemetryListener.running {
+			if telemetryListener.Running {
 				d, datagramIndex, ok := telemetryListener.LastDatagram()
 				if ok {
 					lastTelemetry = vector.VectorPrint(fmt.Sprintf("[%5d]", datagramIndex), d.Input)
