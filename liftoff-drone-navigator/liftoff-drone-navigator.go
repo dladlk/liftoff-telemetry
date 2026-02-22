@@ -1,0 +1,712 @@
+package main
+
+import (
+	"context"
+	"encoding/binary"
+	"fmt"
+	"math"
+	"net"
+	"os"
+	"time"
+)
+
+//
+// ================== Math helpers ==================
+//
+
+type Vec3 [3]float64
+type Mat3 [3][3]float64
+
+func add(a, b Vec3) Vec3         { return Vec3{a[0] + b[0], a[1] + b[1], a[2] + b[2]} }
+func sub(a, b Vec3) Vec3         { return Vec3{a[0] - b[0], a[1] - b[1], a[2] - b[2]} }
+func mul(a Vec3, s float64) Vec3 { return Vec3{a[0] * s, a[1] * s, a[2] * s} }
+func dot(a, b Vec3) float64      { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] }
+func cross(a, b Vec3) Vec3 {
+	return Vec3{
+		a[1]*b[2] - a[2]*b[1],
+		a[2]*b[0] - a[0]*b[2],
+		a[0]*b[1] - a[1]*b[0],
+	}
+}
+func norm(a Vec3) float64 { return math.Sqrt(dot(a, a)) }
+func normalize(a Vec3) Vec3 {
+	n := norm(a)
+	if n < 1e-9 {
+		return Vec3{0, 0, 1}
+	}
+	return Vec3{a[0] / n, a[1] / n, a[2] / n}
+}
+
+func clamp(x, lo, hi float64) float64 {
+	if x < lo {
+		return lo
+	}
+	if x > hi {
+		return hi
+	}
+	return x
+}
+func clampVec3(v Vec3, lo, hi float64) Vec3 {
+	return Vec3{clamp(v[0], lo, hi), clamp(v[1], lo, hi), clamp(v[2], lo, hi)}
+}
+func subMat(A, B Mat3) Mat3 {
+	return Mat3{
+		{A[0][0] - B[0][0], A[0][1] - B[0][1], A[0][2] - B[0][2]},
+		{A[1][0] - B[1][0], A[1][1] - B[1][1], A[1][2] - B[1][2]},
+		{A[2][0] - B[2][0], A[2][1] - B[2][1], A[2][2] - B[2][2]},
+	}
+}
+func matMul(A, B Mat3) Mat3 {
+	var C Mat3
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			C[i][j] = A[i][0]*B[0][j] + A[i][1]*B[1][j] + A[i][2]*B[2][j]
+		}
+	}
+	return C
+}
+func matT(R Mat3) Mat3 {
+	return Mat3{
+		{R[0][0], R[1][0], R[2][0]},
+		{R[0][1], R[1][1], R[2][1]},
+		{R[0][2], R[1][2], R[2][2]},
+	}
+}
+
+// ============================
+//   Rotations (zyx) & quaternions
+//
+// R = Rz(yaw)*Ry(pitch)*Rx(roll) maps body -> world
+//
+
+func eulerToR(roll, pitch, yaw float64) Mat3 {
+	cr, sr := math.Cos(roll), math.Sin(roll)
+	cp, sp := math.Cos(pitch), math.Sin(pitch)
+	cy, sy := math.Cos(yaw), math.Sin(yaw)
+
+	return Mat3{
+		{cy * cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr},
+		{sy * cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr},
+		{-sp, cp * sr, cp * cr},
+	}
+}
+
+func rToEuler(R Mat3) (roll, pitch, yaw float64) {
+	pitch = -math.Asin(clamp(R[2][0], -1.0, 1.0))
+	cp := math.Cos(pitch)
+	if cp < 1e-6 {
+		// Gimbal lock fallback
+		roll = 0
+		yaw = math.Atan2(-R[0][1], R[1][1])
+		return
+	}
+	roll = math.Atan2(R[2][1], R[2][2])
+	yaw = math.Atan2(R[1][0], R[0][0])
+	return
+}
+
+func quatToR(w, x, y, z float64) Mat3 {
+	// unit quaternion expected
+	xx, yy, zz := x*x, y*y, z*z
+	xy, xz, yz := x*y, x*z, y*z
+	wx, wy, wz := w*x, w*y, w*z
+	return Mat3{
+		{1 - 2*(yy+zz), 2 * (xy - wz), 2 * (xz + wy)},
+		{2 * (xy + wz), 1 - 2*(xx+zz), 2 * (yz - wx)},
+		{2 * (xz - wy), 2 * (yz + wx), 1 - 2*(xx+yy)},
+	}
+}
+
+func vee(S Mat3) Vec3 {
+	return Vec3{
+		(S[2][1] - S[1][2]) * 0.5,
+		(S[0][2] - S[2][0]) * 0.5,
+		(S[1][0] - S[0][1]) * 0.5,
+	}
+}
+
+func wrapPi(a float64) float64 {
+	for a > math.Pi {
+		a -= 2 * math.Pi
+	}
+	for a < -math.Pi {
+		a += 2 * math.Pi
+	}
+	return a
+}
+
+//
+// ================== Interfaces ==================
+//
+
+// Telemetry: world ENU (m, m/s), attitude as body->world rotation, body rates (rad/s)
+type Telemetry struct {
+	Time  time.Time
+	P     Vec3 // position (world, m)
+	V     Vec3 // velocity (world, m/s)
+	R     Mat3 // rotation (body->world)
+	Omega Vec3 // body rates [p q r], rad/s
+}
+type TelemetryProvider interface {
+	Read(ctx context.Context) (Telemetry, error)
+}
+
+// Desired setpoint: position/velocity/acceleration and yaw (heading)
+type Setpoint struct {
+	Pd     Vec3
+	Vd     Vec3
+	Aff    Vec3
+	PsiD   float64 // desired yaw (rad)
+	HasVd  bool
+	HasAff bool
+}
+type SetpointProvider interface {
+	Desired(ctx context.Context, now time.Time) (Setpoint, error)
+}
+
+/* ============================
+   Controller (ACRO)
+   ============================ */
+
+// Joystick actuator in ACRO:
+//   - leftVert  : throttle (collective). Un-centered(DLK: REALLY?) (0..+MaxFloat32) by default.
+//   - leftHoriz : yaw rate ([-MaxFloat32, +MaxFloat32])
+//   - rightVert : pitch rate ([-MaxFloat32, +MaxFloat32])
+//   - rightHoriz: roll  rate ([-MaxFloat32, +MaxFloat32])
+type JoystickActuator interface {
+	// ACRO: LV=throttle [0..+32767] (uncentered) or [-32767..+32767] (centered)
+	SendJoystick(ctx context.Context, leftVert, leftHoriz, rightVert, rightHoriz int16) error
+}
+
+/* ============================
+   Telemetry (Liftoff UDP)
+   ============================ */
+
+type LfPacket struct {
+	Timestamp              float32
+	PosX, PosY, PosZ       float32
+	RotW, RotX, RotY, RotZ float32
+	VelX, VelY, VelZ       float32
+	GyroP, GyroR, GyroY    float32
+	InT, InY, InP, InR     float32
+	BatPct, BatVolt        float32
+	MotorCount             uint8
+	MotorRPM               []float32 // len=MotorCount
+}
+
+// parseLfPacket assumes the "StreamFormat" as in the sample config below.
+func parseLfPacket(buf []byte) (LfPacket, bool) {
+	r := LfPacket{}
+	rd := makeReader(buf)
+	var ok bool
+
+	ok = rd.f32(&r.Timestamp) &&
+		rd.f32(&r.PosX) && rd.f32(&r.PosY) && rd.f32(&r.PosZ) &&
+		rd.f32(&r.RotW) && rd.f32(&r.RotX) && rd.f32(&r.RotY) && rd.f32(&r.RotZ) &&
+		rd.f32(&r.VelX) && rd.f32(&r.VelY) && rd.f32(&r.VelZ) &&
+		rd.f32(&r.GyroP) && rd.f32(&r.GyroR) && rd.f32(&r.GyroY) &&
+		rd.f32(&r.InT) && rd.f32(&r.InY) && rd.f32(&r.InP) && rd.f32(&r.InR) &&
+		rd.f32(&r.BatPct) && rd.f32(&r.BatVolt) &&
+		rd.u8(&r.MotorCount)
+	if !ok {
+		return LfPacket{}, false
+	}
+
+	if int(r.MotorCount) < 0 || int(r.MotorCount) > 16 { // sanity
+		return LfPacket{}, false
+	}
+	r.MotorRPM = make([]float32, int(r.MotorCount))
+	for i := 0; i < int(r.MotorCount); i++ {
+		if !rd.f32(&r.MotorRPM[i]) {
+			return LfPacket{}, false
+		}
+	}
+	return r, true
+}
+
+type reader struct {
+	b   []byte
+	off int
+}
+
+func makeReader(b []byte) *reader { return &reader{b: b} }
+func (r *reader) f32(out *float32) bool {
+	if r.off+4 > len(r.b) {
+		return false
+	}
+	*out = math.Float32frombits(binary.LittleEndian.Uint32(r.b[r.off:]))
+	r.off += 4
+	return true
+}
+func (r *reader) u8(out *uint8) bool {
+	if r.off+1 > len(r.b) {
+		return false
+	}
+	*out = r.b[r.off]
+	r.off++
+	return true
+}
+
+/*
+============================
+
+	Liftoff UDP receiver
+	============================
+*/
+type LfUDP struct {
+	conn     *net.UDPConn
+	pktBytes int // expected packet size (optional; 0 = unknown)
+}
+
+func NewLfUDP(listen string, pktBytes int) (*LfUDP, error) {
+	addr, err := net.ResolveUDPAddr("udp", listen)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if pktBytes > 0 {
+		// Keep only the latest frame in the OS UDP buffer (best-effort).
+		// See note: using a 1-packet buffer avoids lag. (Kernel may clamp.)
+		// Ref: Chisholm blog advice.
+		if err := conn.SetReadBuffer(pktBytes); err != nil {
+			fmt.Fprintf(os.Stderr, "warn: SetReadBuffer: %v\n", err)
+		}
+	}
+
+	return &LfUDP{conn: conn, pktBytes: pktBytes}, nil
+}
+
+func (l *LfUDP) Read(ctx context.Context) (Telemetry, error) {
+	// Large enough to cover common packets (≈ 4* (1+3+4+3+3+4+2) + 1 + 4*8 ≈ < 200 bytes for quad)
+	buf := make([]byte, 512)
+	l.conn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+	n, _, err := l.conn.ReadFromUDP(buf)
+	if err != nil {
+		return Telemetry{}, err
+	}
+	pkt, ok := parseLfPacket(buf[:n])
+	if !ok {
+		return Telemetry{}, fmt.Errorf("bad liftoff packet size=%d", n)
+	}
+	R := quatToR(float64(pkt.RotW), float64(pkt.RotX), float64(pkt.RotY), float64(pkt.RotZ))
+	tel := Telemetry{
+		Time: time.Now(),
+		P:    Vec3{float64(pkt.PosX), float64(pkt.PosY), float64(pkt.PosZ)},
+		V:    Vec3{float64(pkt.VelX), float64(pkt.VelY), float64(pkt.VelZ)},
+		R:    R,
+		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
+		Omega: Vec3{float64(pkt.GyroR), float64(pkt.GyroP), float64(pkt.GyroY)},
+	}
+	return tel, nil
+}
+
+//
+// ================== Config & State ==================
+//
+
+type PosGains struct {
+	Kp       Vec3 // position P
+	Kv       Vec3 // velocity P (damping)
+	Ki       Vec3 // position I
+	IntLimit float64
+}
+
+type AcroRateLimits struct {
+	MaxRollRate  float64 // rad/s
+	MaxPitchRate float64 // rad/s
+	MaxYawRate   float64 // rad/s
+}
+
+// ACRO throttle shaping
+type ThrottleMap struct {
+	// If Centered=false (typical ACRO), stick ∈ [0,1];  hover is at HoverStick in [0..1]
+	// throttleStick = clamp( HoverStick + Slope*(T/(mg)-1), 0, 1 )
+	// If Centered=true (spring), stick ∈ [-1,1]; hover is 0
+	// throttleStick = clamp( (T/(mg)-1)/CenteredSpan, -1, 1 )
+	HoverStick       float64 // where hover sits on [0..1] scale (e.g., 0.5)
+	Slope            float64 // linear sensitivity around hover (unitless)
+	Centered         bool    // if true, map to [-1,1] centered at hover
+	CenteredSpan     float64 // how much relative thrust delta maps to full deflection (e.g., 1.0 → ±100% per ±100% thrust delta)
+	Deadzone         float64 // small deadzone around hover or zero
+	RateLimitPerTick float64 // max change per tick in stick units
+}
+
+type OutputSigns struct {
+	InvertRoll  bool // flips right-horizontal
+	InvertPitch bool // flips right-vertical
+	InvertYaw   bool // flips left-horizontal
+}
+
+type ControllerConfig struct {
+	Mass float64
+	G    float64
+	Hz   float64
+
+	Pos        PosGains
+	R2RateGain Vec3    // gains mapping attitude error -> desired body rates
+	YawP       float64 // extra P on yaw heading error to rate (optional)
+	Rates      AcroRateLimits
+	Throttle   ThrottleMap
+	Signs      OutputSigns
+}
+
+type ControllerState struct {
+	IntEP                         Vec3
+	lastL, lastLH, lastRV, lastRH float64
+}
+
+type Controller struct {
+	cfg   ControllerConfig
+	state ControllerState
+	tprov TelemetryProvider
+	sprov SetpointProvider
+	act   JoystickActuator
+}
+
+func NewController(cfg ControllerConfig, t TelemetryProvider, s SetpointProvider, a JoystickActuator) *Controller {
+	return &Controller{
+		cfg:   cfg,
+		tprov: t,
+		sprov: s,
+		act:   a,
+	}
+}
+
+//
+// ================== Control blocks ==================
+//
+
+// 1) Outer (position) loop to desired world acceleration (a_c)
+func (c *Controller) positionLoop(p, v Vec3, sp Setpoint, dt float64) (a_c Vec3) {
+	vd := sp.Vd
+	if !sp.HasVd {
+		vd = Vec3{0, 0, 0}
+	}
+	aff := sp.Aff
+	if !sp.HasAff {
+		aff = Vec3{0, 0, 0}
+	}
+
+	ep := sub(sp.Pd, p)
+	ev := sub(vd, v)
+
+	// integrate with clamp (anti-windup)
+	il := c.cfg.Pos.IntLimit
+	c.state.IntEP = clampVec3(add(c.state.IntEP, mul(ep, dt)), -il, il)
+
+	a_c = Vec3{
+		aff[0] + c.cfg.Pos.Kp[0]*ep[0] + c.cfg.Pos.Kv[0]*ev[0] + c.cfg.Pos.Ki[0]*c.state.IntEP[0],
+		aff[1] + c.cfg.Pos.Kp[1]*ep[1] + c.cfg.Pos.Kv[1]*ev[1] + c.cfg.Pos.Ki[1]*c.state.IntEP[1],
+		aff[2] + c.cfg.Pos.Kp[2]*ep[2] + c.cfg.Pos.Kv[2]*ev[2] + c.cfg.Pos.Ki[2]*c.state.IntEP[2],
+	}
+	return
+}
+
+// 2) From desired acceleration (a_c) and yaw (psi_d) to desired attitude (Rd) and thrust (T)
+func attitudeAndThrustFromAccelYaw(a_c Vec3, g float64, psiD float64, mass float64) (Rd Mat3, T float64) {
+	gvec := Vec3{0, 0, -g}
+	accStar := sub(a_c, gvec) // a_c - g
+	b3d := normalize(accStar) // desired body z axis (world)
+	T = mass * norm(accStar)  // collective thrust
+
+	// build body x-axis to honor desired yaw
+	b1c := Vec3{math.Cos(psiD), math.Sin(psiD), 0}
+	b2d := normalize(cross(b3d, b1c))
+	if norm(b2d) < 1e-6 {
+		// nearly collinear, rotate reference axis by 90°
+		b1c = Vec3{math.Cos(psiD + math.Pi/2), math.Sin(psiD + math.Pi/2), 0}
+		b2d = normalize(cross(b3d, b1c))
+	}
+	b1d := cross(b2d, b3d)
+	Rd = Mat3{
+		{b1d[0], b2d[0], b3d[0]},
+		{b1d[1], b2d[1], b3d[1]},
+		{b1d[2], b2d[2], b3d[2]},
+	}
+	return
+}
+
+// 3) Geometric attitude error (SO(3)) to desired body rates (ACRO targets)
+func (c *Controller) desiredBodyRates(R, Rd Mat3, yawCur, yawD float64) (omegaCmd Vec3) {
+	Re := matMul(matT(Rd), R)
+	eR := vee(subMat(Re, matT(Re))) // attitude error vector in R^3 (approx rotation error)
+
+	// Map attitude error to body rate command (p,q,r)
+	omegaCmd = Vec3{
+		c.cfg.R2RateGain[0] * eR[0],
+		c.cfg.R2RateGain[1] * eR[1],
+		c.cfg.R2RateGain[2] * eR[2],
+	}
+
+	// Optionally bias yaw rate by heading error explicitly (helps when near hover)
+	if c.cfg.YawP > 0 {
+		yawErr := wrapPi(yawD - yawCur)
+		omegaCmd[2] += c.cfg.YawP * yawErr
+	}
+
+	// Clip to rate limits
+	omegaCmd[0] = clamp(omegaCmd[0], -c.cfg.Rates.MaxRollRate, c.cfg.Rates.MaxRollRate)
+	omegaCmd[1] = clamp(omegaCmd[1], -c.cfg.Rates.MaxPitchRate, c.cfg.Rates.MaxPitchRate)
+	omegaCmd[2] = clamp(omegaCmd[2], -c.cfg.Rates.MaxYawRate, c.cfg.Rates.MaxYawRate)
+	return
+}
+
+//
+// ================== ACRO Joystick mapping ==================
+//
+
+func signInvert(x float64, inv bool) float64 {
+	if inv {
+		return -x
+	}
+	return x
+}
+
+func applyDeadzone(x, dz float64) float64 {
+	if math.Abs(x) <= dz {
+		return 0
+	}
+	s := math.Copysign(1, x)
+	return s * (math.Abs(x) - dz) / (1 - dz)
+}
+func rateLimit(x, last, maxDelta float64) float64 {
+	d := x - last
+	if d > maxDelta {
+		return last + maxDelta
+	}
+	if d < -maxDelta {
+		return last - maxDelta
+	}
+	return x
+}
+
+const i16Max = 32767
+
+func toInt16Signed(norm float64) int16 {
+	n := clamp(norm, -1, 1)
+	return int16(math.Round(n * i16Max))
+}
+func toInt16Uncentered01(x float64) int16 {
+	x = clamp(x, 0, 1)
+	return int16(math.Round(x * i16Max))
+}
+
+// RH (right-horiz) : roll rate  → normalized by MaxRollRate
+// RV (right-vert)  : pitch rate → normalized by MaxPitchRate
+// LH (left-horiz)  : yaw rate   → normalized by MaxYawRate
+// LV (left-vert)   : throttle   → from thrust T vs hover (mg) using ThrottleMap
+//
+
+func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float64) (lv, lh, rv, rh int16) {
+	// current yaw
+	_, _, yawCur := rToEuler(tel.R)
+
+	// desired body rates from attitude error
+	omegaCmd := c.desiredBodyRates(tel.R, Rd, yawCur, sp.PsiD)
+
+	// normalize to [-1..1]
+	rhNorm := omegaCmd[0] / c.cfg.Rates.MaxRollRate
+	rvNorm := omegaCmd[1] / c.cfg.Rates.MaxPitchRate
+	lhNorm := omegaCmd[2] / c.cfg.Rates.MaxYawRate
+
+	rhNorm = signInvert(rhNorm, c.cfg.Signs.InvertRoll)
+	rvNorm = signInvert(rvNorm, c.cfg.Signs.InvertPitch)
+	lhNorm = signInvert(lhNorm, c.cfg.Signs.InvertYaw)
+
+	// --------------------
+	// throttle mapping
+	// --------------------
+	tHover := c.cfg.Mass * c.cfg.G
+	rel := T / tHover // 1.0 at hover
+
+	dz := clamp(c.cfg.Throttle.Deadzone, 0, 0.2)
+	rl := clamp(c.cfg.Throttle.RateLimitPerTick, 0, 1)
+
+	rhNorm = applyDeadzone(clamp(rhNorm, -1, 1), dz)
+	rvNorm = applyDeadzone(clamp(rvNorm, -1, 1), dz)
+	lhNorm = applyDeadzone(clamp(lhNorm, -1, 1), dz)
+
+	rhNorm = rateLimit(rhNorm, c.state.lastRH, rl)
+	rvNorm = rateLimit(rvNorm, c.state.lastRV, rl)
+	lhNorm = rateLimit(lhNorm, c.state.lastLH, rl)
+
+	c.state.lastRH = rhNorm
+	c.state.lastRV = rvNorm
+	c.state.lastLH = lhNorm
+
+	rh = toInt16Signed(rhNorm)
+	rv = toInt16Signed(rvNorm)
+	lh = toInt16Signed(lhNorm)
+
+	if c.cfg.Throttle.Centered {
+		// Centered throttle in [-1,1], 0 at hover
+		span := math.Max(c.cfg.Throttle.CenteredSpan, 1e-6)
+		raw := clamp((rel-1.0)/span, -1, 1)
+		raw = applyDeadzone(raw, dz)
+		raw = rateLimit(raw, c.state.lastL, rl)
+		c.state.lastL = raw
+		lv = toInt16Signed(raw)
+	} else {
+		// Uncentered throttle in [0,1], HoverStick at rel=1
+		raw := c.cfg.Throttle.HoverStick + c.cfg.Throttle.Slope*(rel-1.0)
+		raw = clamp(raw, 0, 1)
+		raw = rateLimit(raw, c.state.lastL, rl)
+		c.state.lastL = raw
+		lv = toInt16Uncentered01(raw)
+	}
+	return
+}
+
+//
+// ================== Run loop ==================
+//
+
+func (c *Controller) Run(ctx context.Context) error {
+	dt := 1.0 / c.cfg.Hz
+	ticker := time.NewTicker(time.Duration(1e9 / c.cfg.Hz))
+	defer ticker.Stop()
+
+	fmt.Println("Controller running. Make sure Liftoff is streaming telemetry")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case now := <-ticker.C:
+			tel, err := c.tprov.Read(ctx)
+			if err != nil {
+				// In a real app, handle timeouts/non-fatal errors more gently
+				return fmt.Errorf("telemetry read: %w", err)
+			}
+			sp, err := c.sprov.Desired(ctx, now)
+			if err != nil {
+				return fmt.Errorf("setpoint read: %w", err)
+			}
+
+			// 1) Position loop -> desired acceleration
+			a_c := c.positionLoop(tel.P, tel.V, sp, dt)
+
+			// 2) Desired attitude from yaw + thrust direction
+			Rd, T := attitudeAndThrustFromAccelYaw(a_c, c.cfg.G, sp.PsiD, c.cfg.Mass)
+
+			// 3) Map to ACRO sticks (rates + throttle)
+			lv, lh, rv, rh := c.toAcroJoystick(tel, sp, Rd, T)
+
+			// 4) Send
+			if err := c.act.SendJoystick(ctx, lv, lh, rv, rh); err != nil {
+				return fmt.Errorf("joystick send: %w", err)
+			}
+		}
+	}
+}
+
+//
+// ================== Demo stubs ==================
+//
+
+type MockTelemetry struct{}
+
+func (m *MockTelemetry) Read(ctx context.Context) (Telemetry, error) {
+	return Telemetry{
+		Time:  time.Now(),
+		P:     Vec3{0, 0, 0},
+		V:     Vec3{0, 0, 0},
+		R:     eulerToR(0, 0, 0),
+		Omega: Vec3{0, 0, 0},
+	}, nil
+}
+
+type MockSetpoint struct {
+	p    Vec3
+	yawD float64
+}
+
+func (m *MockSetpoint) Desired(ctx context.Context, now time.Time) (Setpoint, error) {
+	return Setpoint{
+		Pd:     m.p,
+		Vd:     Vec3{0, 0, 0},
+		Aff:    Vec3{0, 0, 0},
+		PsiD:   m.yawD,
+		HasVd:  true,
+		HasAff: true,
+	}, nil
+}
+
+type MockJoystick struct{}
+
+func (a *MockJoystick) SendJoystick(ctx context.Context, lv, lh, rv, rh int16) error {
+	fmt.Printf("ACRO int16 sticks  LV(thr)=%6d  LH(yaw)=%6d  RV(pitch)=%6d  RH(roll)=%6d\n",
+		lv, lh, rv, rh)
+	return nil
+}
+
+func main() {
+	cfg := ControllerConfig{
+		Mass: 1.25,
+		G:    9.81,
+		Hz:   100.0, // Each 10 ms, like UDP sent by Liftoff
+
+		Pos: PosGains{
+			Kp:       Vec3{1.2, 1.2, 2.5},
+			Kv:       Vec3{1.0, 1.0, 1.8},
+			Ki:       Vec3{0.05, 0.05, 0.2},
+			IntLimit: 2.0,
+		},
+
+		// Map attitude error -> rate commands (tune these)
+		R2RateGain: Vec3{8.0, 8.0, 4.0}, // [1/s] per rad of error
+		YawP:       0.8,                 // extra yaw P (optional)
+
+		Rates: AcroRateLimits{
+			MaxRollRate:  4.0, // rad/s (~230 deg/s)
+			MaxPitchRate: 4.0,
+			MaxYawRate:   3.0,
+		},
+		Throttle: ThrottleMap{
+			HoverStick:       0.5,   // hover mid-stick (uncentered mode)
+			Slope:            0.5,   // 50% stick per 100% thrust delta around hover
+			Centered:         false, // ACRO "M" style (unsprung throttle)
+			CenteredSpan:     1.0,   // used only if Centered=true
+			Deadzone:         0.03,
+			RateLimitPerTick: 0.05,
+		},
+		Signs: OutputSigns{
+			InvertRoll:  false,
+			InvertPitch: false, // set true if forward stick should mean nose-down
+			InvertYaw:   false,
+		},
+	}
+	const listen = "127.0.0.1:9001"
+	// Expected packet size (optional optimization): here we set an upper bound; kernel may round it.
+	const approxPacketBytes = 200
+	lf, err := NewLfUDP(listen, approxPacketBytes)
+	if err != nil {
+		fmt.Println("udp:", err)
+		return
+	}
+
+	tel := lf
+	sp := &MockSetpoint{
+		p:    Vec3{2.0, 1.0, 1.5},
+		yawD: 25 * math.Pi / 180.0,
+	}
+	joy := &MockJoystick{}
+
+	ctrl := NewController(cfg, tel, sp, joy)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Run briefly for demo
+	go func() {
+		time.Sleep(120 * time.Millisecond)
+		cancel()
+	}()
+	if err := ctrl.Run(ctx); err != nil && err != context.Canceled {
+		fmt.Println("controller stopped:", err)
+	}
+}
