@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-func RunJoystickControlServer(address string, drone IDrone) {
+func RunJoystickControlServer(address string, drone IDrone, debug bool) {
 	addr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		log.Fatalf("Couldn't resolve address: %v", err)
@@ -43,7 +43,7 @@ func RunJoystickControlServer(address string, drone IDrone) {
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
-			log.Printf("Read error: %v", err)
+			fmt.Printf("Read error: %v", err)
 			continue
 		}
 
@@ -52,8 +52,12 @@ func RunJoystickControlServer(address string, drone IDrone) {
 		joystickPosition := [4]int16{}
 		err = binary.Read(reader, order, &joystickPosition)
 		if err != nil {
-			log.Printf("Failed to parse joystick position from client %v: %v", clientAddr, err)
+			fmt.Printf("Failed to parse joystick position from client %v: %v\n", clientAddr, err)
 		}
+		if debug {
+			fmt.Printf("Received %d bytes of joystick position: %v", n, joystickPosition)
+		}
+
 		// Receive lv, lh, rv, rh - so should swap pairs to get lx, ly, rx, ry
 		// TODO: Maybe we need to change sing of rx - like it was done when sending Input
 		drone.UpdateDirect(joystickPosition[1], joystickPosition[0], joystickPosition[3], joystickPosition[2])

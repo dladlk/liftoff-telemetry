@@ -622,7 +622,8 @@ func main() {
 		flag.PrintDefaults()
 	}
 	doHelp := flag.Bool("help", false, "Prints help")
-	joystickServerAddress := flag.String("address", "localhost:9002", "Address of local UDP server to send joystick commands to")
+	doDebug := flag.Bool("debug", false, "Log debug messages")
+	joystickServerAddress := flag.String("address", "127.0.0.1:9002", "Address of local UDP server to send joystick commands to")
 
 	flag.Parse()
 	if *doHelp {
@@ -631,7 +632,7 @@ func main() {
 	}
 
 	joy := &RealJoystick{}
-	err := joy.client.Start(*joystickServerAddress)
+	err := joy.client.Start(*joystickServerAddress, *doDebug)
 	if err != nil {
 		fmt.Printf("Cannot connect to joystick server on address %s: %v", *joystickServerAddress, err)
 		os.Exit(1)
@@ -655,10 +656,10 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	desiredIncrement := Vec3{2.0, 1.0, 1.5} // move to (x=2, y=1, z=1.5) from first successful telemetry
+	desiredIncrement := Vec3{20, 10, 15} // move from first successful telemetry
 	positionDesired := add(float32SliceToVec3(firstDatagram.Position), desiredIncrement)
 
-	fmt.Printf("Navigate to position %v", positionDesired)
+	fmt.Printf("Navigate to position %v\n", positionDesired)
 
 	sp := &MockSetpoint{
 		PositionDesired: positionDesired,
@@ -678,6 +679,8 @@ func main() {
 	fmt.Println("Starting engine")
 	joy.SendJoystick(ctx, JoystickPosition{math.MinInt16, 0, 0, 0})
 	time.Sleep(500 * time.Millisecond)
+
+	fmt.Println("Start navigation")
 
 	// Stop after some time
 	go func() {
