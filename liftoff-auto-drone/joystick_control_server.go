@@ -54,6 +54,8 @@ func RunJoystickControlServer(address string, drone IDrone) {
 		if err != nil {
 			log.Printf("Failed to parse joystick position from client %v: %v", clientAddr, err)
 		}
+		// Receive lv, lh, rv, rh - so should swap pairs to get lx, ly, rx, ry
+		// TODO: Maybe we need to change sing of rx - like it was done when sending Input
 		drone.UpdateDirect(joystickPosition[1], joystickPosition[0], joystickPosition[3], joystickPosition[2])
 	}
 }
