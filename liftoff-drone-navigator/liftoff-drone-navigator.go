@@ -183,7 +183,7 @@ type SetpointProvider interface {
 //   - rightHoriz: roll  rate ([-MaxFloat32, +MaxFloat32])
 type JoystickActuator interface {
 	// ACRO: LV=throttle [0..+32767] (uncentered) or [-32767..+32767] (centered)
-	SendJoystick(ctx context.Context, leftVert, leftHoriz, rightVert, rightHoriz int16) error
+	SendJoystick(ctx context.Context, joystickPosition JoystickPosition) error
 }
 
 type LiftoffTelemetryProvider struct {
@@ -199,6 +199,11 @@ func (l *LiftoffTelemetryProvider) Read(ctx context.Context) (Telemetry, bool, e
 	if !ok {
 		return Telemetry{}, ok, nil
 	}
+	tel := DatagramToTelemetry(datagram)
+	return tel, true, nil
+}
+
+func DatagramToTelemetry(datagram *lot_config.Datagram) Telemetry {
 	R := quaternionToRotationMatrix(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
 	tel := Telemetry{
 		Time:     time.Now(),
@@ -208,7 +213,7 @@ func (l *LiftoffTelemetryProvider) Read(ctx context.Context) (Telemetry, bool, e
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
 		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
 	}
-	return tel, true, nil
+	return tel
 }
 
 //
@@ -409,7 +414,18 @@ func toInt16Uncentered01(x float64) int16 {
 // LV (left-vert)   : throttle   → from thrust T vs hover (mg) using ThrottleMap
 //
 
-func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float64) (lv, lh, rv, rh int16) {
+type JoystickPosition struct {
+	LV int16
+	LH int16
+	RV int16
+	RH int16
+}
+
+func (j JoystickPosition) String() string {
+	return fmt.Sprintf("[%d %d %d %d]", j.LV, j.LH, j.RV, j.RH)
+}
+
+func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float64) JoystickPosition {
 	// current yaw
 	_, _, yawCur := rToEuler(tel.Rotation)
 
@@ -446,9 +462,10 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 	c.state.lastRV = rvNorm
 	c.state.lastLH = lhNorm
 
-	rh = toInt16Signed(rhNorm)
-	rv = toInt16Signed(rvNorm)
-	lh = toInt16Signed(lhNorm)
+	rh := toInt16Signed(rhNorm)
+	rv := toInt16Signed(rvNorm)
+	lh := toInt16Signed(lhNorm)
+	var lv int16
 
 	if c.cfg.Throttle.Centered {
 		// Centered throttle in [-1,1], 0 at hover
@@ -466,7 +483,7 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 		c.state.lastL = raw
 		lv = toInt16Uncentered01(raw)
 	}
-	return
+	return JoystickPosition{lv, lh, rv, rh}
 }
 
 //
@@ -474,7 +491,6 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 //
 
 func (c *Controller) Run(ctx context.Context) error {
-	dt := 1.0 / c.cfg.Hz
 	ticker := time.NewTicker(time.Duration(1e9 / c.cfg.Hz))
 	defer ticker.Stop()
 	for {
@@ -495,21 +511,23 @@ func (c *Controller) Run(ctx context.Context) error {
 				return fmt.Errorf("setpoint read: %w", err)
 			}
 
-			// 1) Position loop -> desired acceleration
-			a_c := c.positionLoop(tel.Position, tel.Velocity, sp, dt)
-
-			// 2) Desired attitude from yaw + thrust direction
-			Rd, T := attitudeAndThrustFromAccelYaw(a_c, c.cfg.G, sp.PsiD, c.cfg.Mass)
-
-			// 3) Map to ACRO sticks (rates + throttle)
-			lv, lh, rv, rh := c.toAcroJoystick(tel, sp, Rd, T)
-
-			// 4) Send
-			if err := c.act.SendJoystick(ctx, lv, lh, rv, rh); err != nil {
+			joystickPosition := CalculateJoysticksPosition(c, tel, sp)
+			if err := c.act.SendJoystick(ctx, joystickPosition); err != nil {
 				return fmt.Errorf("joystick send: %w", err)
 			}
 		}
 	}
+}
+
+func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) JoystickPosition {
+	// 1) Position loop -> desired acceleration
+	a_c := c.positionLoop(tel.Position, tel.Velocity, sp, c.cfg.Dt)
+
+	// 2) Desired attitude from yaw + thrust direction
+	Rd, T := attitudeAndThrustFromAccelYaw(a_c, c.cfg.G, sp.PsiD, c.cfg.Mass)
+
+	// 3) Map to ACRO sticks (rates + throttle)
+	return c.toAcroJoystick(tel, sp, Rd, T)
 }
 
 //
@@ -546,9 +564,8 @@ func (m *MockSetpoint) Desired(ctx context.Context, now time.Time) (Setpoint, er
 
 type MockJoystick struct{}
 
-func (a *MockJoystick) SendJoystick(ctx context.Context, lv, lh, rv, rh int16) error {
-	fmt.Printf("ACRO int16 sticks  LV(thr)=%6d  LH(yaw)=%6d  RV(pitch)=%6d  RH(roll)=%6d\n",
-		lv, lh, rv, rh)
+func (a *MockJoystick) SendJoystick(ctx context.Context, joystickPosition JoystickPosition) error {
+	fmt.Printf("Joystick %v\n", joystickPosition)
 	return nil
 }
 
@@ -633,7 +650,7 @@ func main() {
 
 	// Before navigation, start props by setting throttle to min value for half second
 	fmt.Println("Starting engine")
-	joy.SendJoystick(ctx, math.MinInt16, 0, 0, 0)
+	joy.SendJoystick(ctx, JoystickPosition{math.MinInt16, 0, 0, 0})
 	time.Sleep(500 * time.Millisecond)
 
 	// Stop after some time
