@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	track "github.com/dladlk/liftoff-auto-drone/track"
@@ -566,11 +568,12 @@ func (m *MockSetpoint) Desired(ctx context.Context, now time.Time) (Setpoint, er
 	}, nil
 }
 
-type MockJoystick struct{}
+type RealJoystick struct {
+	client track.JoystickControlClient
+}
 
-func (a *MockJoystick) SendJoystick(ctx context.Context, joystickPosition JoystickPosition) error {
-	fmt.Printf("Joystick %v\n", joystickPosition)
-	return nil
+func (a *RealJoystick) SendJoystick(ctx context.Context, joystickPosition JoystickPosition) error {
+	return a.client.Send(joystickPosition.LV, joystickPosition.LH, joystickPosition.RV, joystickPosition.RH)
 }
 
 func NewControllerConfig() ControllerConfig {
@@ -614,6 +617,27 @@ func NewControllerConfig() ControllerConfig {
 }
 
 func main() {
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [OPTIONS]\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+	doHelp := flag.Bool("help", false, "Prints help")
+	joystickServerAddress := flag.String("address", "localhost:9002", "Address of local UDP server to send joystick commands to")
+
+	flag.Parse()
+	if *doHelp {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	joy := &RealJoystick{}
+	err := joy.client.Start(*joystickServerAddress)
+	if err != nil {
+		fmt.Printf("Cannot connect to joystick server on address %s: %v", *joystickServerAddress, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Connected to joystick control service on address %s\n", *joystickServerAddress)
+
 	cfg := NewControllerConfig()
 
 	tel := &LiftoffTelemetryProvider{
@@ -641,8 +665,6 @@ func main() {
 		PsiD:            0 * math.Pi / 180.0, // face 0 degree yaw
 	}
 
-	// TODO: Implement real joystick control
-	joy := &MockJoystick{}
 	ctrl := NewController(cfg, tel, sp, joy)
 
 	ctx, cancel := context.WithCancel(context.Background())
