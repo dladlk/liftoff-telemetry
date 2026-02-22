@@ -9,7 +9,8 @@ import (
 
 type IDrone interface {
 	Init()
-	Update(lx int8, ly int8, rx int8, ry int8)
+	UpdatePrimitive(lx int8, ly int8, rx int8, ry int8)
+	UpdateDirect(lx, ly, rx, ry int16)
 	UpdateByInput(Input *[4]float32)
 	UpdateLeftRight(left Joystick, right Joystick)
 	Close()
@@ -29,6 +30,12 @@ func (t Drone) UpdateByInput(Input *[4]float32) {
 	t.x360.Update()
 }
 
+func (t Drone) UpdateDirect(lx, ly, rx, ry int16) {
+	t.x360.LeftJoystick(lx, ly)
+	t.x360.RightJoystick(rx, ry)
+	t.x360.Update()
+}
+
 func float32ToInt16(f float32) int16 {
 	return int16(f * math.MaxInt16)
 }
@@ -40,10 +47,10 @@ func (t *Drone) Init() {
 }
 
 func (t *Drone) UpdateLeftRight(left Joystick, right Joystick) {
-	t.Update(left.x, left.y, right.x, right.y)
+	t.UpdatePrimitive(left.x, left.y, right.x, right.y)
 }
 
-func (t *Drone) Update(lx int8, ly int8, rx int8, ry int8) {
+func (t *Drone) UpdatePrimitive(lx int8, ly int8, rx int8, ry int8) {
 	t.x360.LeftJoystick(convert(lx), convert(ly))
 	t.x360.RightJoystick(convert(rx), convert(ry))
 	t.x360.Update()

@@ -64,6 +64,7 @@ func main() {
 	}
 	doHelp := flag.Bool("help", false, "Prints help")
 	doDryRun := flag.Bool("dry-run", false, "Dry-run - without starting joystick simulation")
+	doUdpServer := flag.String("server", "localhost:9002", "Address of local UDP server to start and listen for joystick commands, e.g. localhost:9092 (default)")
 
 	flag.Parse()
 	if *doHelp {
@@ -86,6 +87,11 @@ func main() {
 		drone = &Drone{}
 	}
 	drone.Init()
+
+	if doUdpServer != nil {
+		RunJoystickControlServer(*doUdpServer, drone)
+		os.Exit(0)
+	}
 
 	trackRunStopChannel := make(chan bool)
 	trackRunning := false
@@ -302,5 +308,5 @@ func p(millis int) {
 }
 func u(lx int8, ly int8, rx int8, ry int8) {
 	//fmt.Printf("Update %d %d %d %d\r\n", lx, ly, rx, ry)
-	drone.Update(lx, ly, rx, ry)
+	drone.UpdatePrimitive(lx, ly, rx, ry)
 }
