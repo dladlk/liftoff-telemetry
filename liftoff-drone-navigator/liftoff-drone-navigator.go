@@ -612,16 +612,26 @@ func main() {
 		PositionDesired: positionDesired,
 		PsiD:            0 * math.Pi / 180.0, // face 0 degree yaw
 	}
-	joy := &MockJoystick{}
 
+	// TODO: Implement real joystick control
+	joy := &MockJoystick{}
 	ctrl := NewController(cfg, tel, sp, joy)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Run briefly for demo
+	// Before starting, sleep 3 seconds to switch to LiftOff
+	fmt.Println("Before navigation, sleep 3 seconds to switch to Liftoff program")
+	time.Sleep(3 * time.Second)
+
+	// Before navigation, start props by setting throttle to min value for half second
+	fmt.Println("Starting engine")
+	joy.SendJoystick(ctx, math.MinInt16, 0, 0, 0)
+	time.Sleep(500 * time.Millisecond)
+
+	// Stop after some time
 	go func() {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(10 * time.Second)
 		fmt.Println("Stop controller after demo period")
 		cancel()
 	}()
