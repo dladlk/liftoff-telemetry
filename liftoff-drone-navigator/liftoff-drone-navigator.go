@@ -252,6 +252,7 @@ type ControllerConfig struct {
 	Mass float64
 	G    float64
 	Hz   float64
+	Dt   float64
 
 	Pos        PosGains
 	R2RateGain Vec3    // gains mapping attitude error -> desired body rates
@@ -551,7 +552,7 @@ func (a *MockJoystick) SendJoystick(ctx context.Context, lv, lh, rv, rh int16) e
 	return nil
 }
 
-func main() {
+func NewControllerConfig() ControllerConfig {
 	cfg := ControllerConfig{
 		Mass: 1.25,
 		G:    9.81,
@@ -587,6 +588,12 @@ func main() {
 			InvertYaw:   false,
 		},
 	}
+	cfg.Dt = 1.0 / cfg.Hz
+	return cfg
+}
+
+func main() {
+	cfg := NewControllerConfig()
 
 	tel := &LiftoffTelemetryProvider{
 		TelemetryListener: &track.TelemetryListener{},
