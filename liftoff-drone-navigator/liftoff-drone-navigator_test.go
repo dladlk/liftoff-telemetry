@@ -29,9 +29,16 @@ func TestCalculate(t *testing.T) {
 
 		{"Expect non-zero joystick if we want to move 1m in direction x and stop",
 			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{1, 0, 0}}, main.JoystickPosition{0, 0, 1638, 0}},
+
+		{"Expect non-zero joystick if we want to move 10m in direction x and stop",
+			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{10, 0, 0}}, main.JoystickPosition{1638, 0, 1638, 0}},
+
+		{"Expect non-zero joystick if we want to move 100m in direction x and stop",
+			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{100, 0, 0}}, main.JoystickPosition{1638, 0, 1638, 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			controller.ResetState()
 			got := main.CalculateJoysticksPosition(controller, tt.tel, tt.sp)
 			if got != tt.want {
 				t.Errorf("CalculateJoysticksPosition() = %v, want %v", got, tt.want)

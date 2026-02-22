@@ -280,6 +280,10 @@ type Controller struct {
 	act   JoystickActuator
 }
 
+func (c *Controller) ResetState() {
+	c.state = ControllerState{}
+}
+
 func NewController(cfg ControllerConfig, t TelemetryProvider, s SetpointProvider, a JoystickActuator) *Controller {
 	return &Controller{
 		cfg:   cfg,
