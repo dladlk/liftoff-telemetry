@@ -17,6 +17,11 @@ import (
 //
 
 type Vec3 [3]float64
+
+func (t Vec3) String() string {
+	return fmt.Sprintf("[% 5.2f % 5.2f % 5.2f]", t[0], t[1], t[2])
+}
+
 type Mat3 [3][3]float64
 
 func add(a, b Vec3) Vec3         { return Vec3{a[0] + b[0], a[1] + b[1], a[2] + b[2]} }
@@ -147,12 +152,19 @@ func wrapPi(a float64) float64 {
 
 // Telemetry: world ENU (m, m/s), attitude as body->world rotation, body rates (rad/s)
 type Telemetry struct {
+	Index    int
 	Time     time.Time
 	Position Vec3 // position (world, m)
 	Velocity Vec3 // velocity (world, m/s)
 	Rotation Mat3 // rotation (body->world)
-	Omega    Vec3 // body rates [p q r], rad/s
+	// NOT USED in calculation???
+	Omega Vec3 // body rates [p q r], rad/s
 }
+
+func (t Telemetry) String() string {
+	return fmt.Sprintf("%d) %s %s", t.Index, t.Position, t.Velocity)
+}
+
 type TelemetryProvider interface {
 	Read(ctx context.Context) (Telemetry, bool, error)
 }
@@ -193,17 +205,18 @@ func (l *LiftoffTelemetryProvider) Read(ctx context.Context) (Telemetry, bool, e
 		fmt.Printf("Listener not running...\n")
 		return Telemetry{}, false, nil
 	}
-	datagram, _, ok := l.TelemetryListener.LastDatagram()
+	datagram, index, ok := l.TelemetryListener.LastDatagram()
 	if !ok {
 		return Telemetry{}, ok, nil
 	}
-	tel := DatagramToTelemetry(datagram)
+	tel := DatagramToTelemetry(datagram, index)
 	return tel, true, nil
 }
 
-func DatagramToTelemetry(datagram *lot_config.Datagram) Telemetry {
+func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 	R := quaternionToRotationMatrix(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
 	tel := Telemetry{
+		Index:    index,
 		Time:     time.Now(),
 		Position: datagramXZYToVec3(datagram.Position),
 		Velocity: datagramXZYToVec3(datagram.Velocity),

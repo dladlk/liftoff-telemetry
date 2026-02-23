@@ -15,7 +15,7 @@ func TestCalculate(t *testing.T) {
 	cfg := main.NewControllerConfig()
 	controller := main.NewController(cfg, &TestTelemetryProvider{}, &TestSetpointProvider{}, &TestJoystick{})
 
-	zeroDatagram := main.DatagramToTelemetry(&lot_config.Datagram{})
+	zeroDatagram := main.DatagramToTelemetry(&lot_config.Datagram{}, 1)
 
 	tests := []struct {
 		name string // description of this test case
@@ -28,7 +28,7 @@ func TestCalculate(t *testing.T) {
 			zeroDatagram, main.Setpoint{}, main.JoystickPosition{}},
 
 		{"Expect zero joystick if we have 1 on pos and want 1 on pos",
-			main.DatagramToTelemetry(&lot_config.Datagram{Position: [3]float32{1, 1, 1}}), main.Setpoint{PositionDesired: main.Vec3{1, 1, 1}}, main.JoystickPosition{}},
+			main.DatagramToTelemetry(&lot_config.Datagram{Position: [3]float32{1, 1, 1}}, 1), main.Setpoint{PositionDesired: main.Vec3{1, 1, 1}}, main.JoystickPosition{}},
 
 		{"Expect non-zero joystick if we want to move 1m in direction x and stop",
 			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{1, 0, 0}}, main.JoystickPosition{265, 0, 1638, 0}},
