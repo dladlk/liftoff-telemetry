@@ -81,7 +81,7 @@ func matT(R Mat3) Mat3 {
 // R = Rz(yaw)*Ry(pitch)*Rx(roll) maps body -> world
 //
 
-func eulerToR(roll, pitch, yaw float64) Mat3 {
+func EulerToR(roll, pitch, yaw float64) Mat3 {
 	cr, sr := math.Cos(roll), math.Sin(roll)
 	cp, sp := math.Cos(pitch), math.Sin(pitch)
 	cy, sy := math.Cos(yaw), math.Sin(yaw)
@@ -546,18 +546,6 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 //
 // ================== Demo stubs ==================
 //
-
-type MockTelemetry struct{}
-
-func (m *MockTelemetry) Read(ctx context.Context) (Telemetry, error) {
-	return Telemetry{
-		Time:     time.Now(),
-		Position: Vec3{0, 0, 0},
-		Velocity: Vec3{0, 0, 0},
-		Rotation: eulerToR(0, 0, 0),
-		Omega:    Vec3{0, 0, 0},
-	}, nil
-}
 
 type MockSetpoint struct {
 	PositionDesired Vec3
