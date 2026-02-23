@@ -9,7 +9,6 @@ import (
 	"time"
 
 	track "github.com/dladlk/liftoff-auto-drone/track"
-	vector "github.com/dladlk/liftoff-auto-drone/vector"
 	lot_config "github.com/dladlk/liftoff-telemetry/data"
 )
 
@@ -30,9 +29,6 @@ func cross(a, b Vec3) Vec3 {
 		a[2]*b[0] - a[0]*b[2],
 		a[0]*b[1] - a[1]*b[0],
 	}
-}
-func float32SliceToVec3(s [3]float32) Vec3 {
-	return Vec3{float64(s[0]), float64(s[1]), float64(s[2])}
 }
 func norm(a Vec3) float64 { return math.Sqrt(dot(a, a)) }
 func normalize(a Vec3) Vec3 {
@@ -209,13 +205,18 @@ func DatagramToTelemetry(datagram *lot_config.Datagram) Telemetry {
 	R := quaternionToRotationMatrix(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
 	tel := Telemetry{
 		Time:     time.Now(),
-		Position: Vec3{float64(datagram.Position[0]), float64(datagram.Position[1]), float64(datagram.Position[2])},
-		Velocity: Vec3{float64(datagram.Velocity[0]), float64(datagram.Velocity[1]), float64(datagram.Velocity[2])},
+		Position: datagramXZYToVec3(datagram.Position),
+		Velocity: datagramXZYToVec3(datagram.Velocity),
 		Rotation: R,
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
 		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
 	}
 	return tel
+}
+
+func datagramXZYToVec3(f [3]float32) Vec3 {
+	// Liftoff telemetry encodes HEIGHT above ground into f[1], not f[2]!!! So actually we recieve it as x,z,y
+	return Vec3{float64(f[0]), float64(f[2]), float64(f[1])}
 }
 
 //
@@ -647,21 +648,21 @@ func main() {
 		TelemetryListener: &track.TelemetryListener{},
 	}
 	tel.TelemetryListener.Toggle()
-	var firstDatagram lot_config.Datagram
+	var startPosition Vec3
 	for {
 		dt, _, ok := tel.TelemetryListener.LastDatagram()
 		if ok {
-			fmt.Printf("Received %s\n", vector.VectorPrint3Short("initial position", dt.Position))
-			firstDatagram = *dt
+			startPosition = datagramXZYToVec3(dt.Position)
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	desiredIncrement := Vec3{10, 0, 0} // move from first successful telemetry
-	positionDesired := add(float32SliceToVec3(firstDatagram.Position), desiredIncrement)
+	desiredIncrement := Vec3{0, 0, 100} // move from first successful telemetry
+	positionDesired := add(startPosition, desiredIncrement)
 
-	fmt.Printf("Navigate to position %v\n", positionDesired)
+	fmt.Printf("Init pos %v\n", startPosition)
+	fmt.Printf("Goal pos %v\n", positionDesired)
 
 	sp := &MockSetpoint{
 		PositionDesired: positionDesired,
