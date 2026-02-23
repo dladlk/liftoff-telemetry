@@ -409,7 +409,9 @@ func toInt16Signed(norm float64) int16 {
 	n := clamp(norm, -1, 1)
 	return int16(math.Round(n * i16Max))
 }
-func toInt16Uncentered01(x float64) int16 {
+
+// Get value in range -32767..32767 (math.MinInt16+1..math.MaxInt16) corresponding to 0..1
+func ToInt16Uncentered01(x float64) int16 {
 	x = clamp(x, 0, 1)
 	return int16(math.Round(x * i16Max))
 }
@@ -478,16 +480,16 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 		span := math.Max(c.cfg.Throttle.CenteredSpan, 1e-6)
 		raw := clamp((rel-1.0)/span, -1, 1)
 		raw = applyDeadzone(raw, dz)
-		raw = rateLimit(raw, c.state.lastL, rl)
-		c.state.lastL = raw
+		raw = rateLimit(raw, c.state.lastLV, rl)
+		c.state.lastLV = raw
 		lv = toInt16Signed(raw)
 	} else {
 		// Uncentered throttle in [0,1], HoverStick at rel=1
 		raw := c.cfg.Throttle.HoverStick + c.cfg.Throttle.Slope*(rel-1.0)
 		raw = clamp(raw, 0, 1)
-		raw = rateLimit(raw, c.state.lastL, rl)
-		c.state.lastL = raw
-		lv = toInt16Uncentered01(raw)
+		raw = rateLimit(raw, c.state.lastLV, rl)
+		c.state.lastLV = raw
+		lv = ToInt16Uncentered01(raw)
 	}
 	return JoystickPosition{lv, lh, rv, rh}
 }
