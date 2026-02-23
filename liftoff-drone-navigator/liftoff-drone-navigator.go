@@ -585,7 +585,7 @@ func (a *RealJoystick) SendJoystick(ctx context.Context, joystickPosition Joysti
 
 func NewControllerConfig() ControllerConfig {
 	cfg := ControllerConfig{
-		Mass: 1.25,
+		Mass: 0.573, // Rotor Riot CL1
 		G:    9.81,
 		Hz:   1.0, // Set to 100Hz to get each 10 ms, like UDP sent by Liftoff
 
