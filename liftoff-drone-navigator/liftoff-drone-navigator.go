@@ -505,6 +505,10 @@ func (c *Controller) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			// Reset joystick to down position but not full down on finish
+			c.act.SendJoystick(ctx, JoystickPosition{math.MinInt16 + 5000, 0, 0, 0})
+			time.Sleep(500 * time.Millisecond)
+
 			return ctx.Err()
 		case now := <-ticker.C:
 			tel, ok, err := c.tprov.Read(ctx)
@@ -688,10 +692,10 @@ func main() {
 	// Stop after some time
 	go func() {
 		time.Sleep(10 * time.Second)
-		fmt.Println("Stop controller after demo period")
+		fmt.Println("Stop controller after short period")
 		cancel()
 	}()
 	if err := ctrl.Run(ctx); err != nil && err != context.Canceled {
-		fmt.Println("controller stopped:", err)
+		fmt.Println("controller stopped with error:", err)
 	}
 }
