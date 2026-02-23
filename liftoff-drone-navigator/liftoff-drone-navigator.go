@@ -282,8 +282,8 @@ type Controller struct {
 	act   JoystickActuator
 }
 
-func (c *Controller) ResetState() {
-	c.state = ControllerState{}
+func (c *Controller) ResetState(lastLv float64) {
+	c.state = ControllerState{lastLV: lastLv}
 }
 
 func NewController(cfg ControllerConfig, t TelemetryProvider, s SetpointProvider, a JoystickActuator) *Controller {
