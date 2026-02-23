@@ -580,7 +580,7 @@ func NewControllerConfig() ControllerConfig {
 	cfg := ControllerConfig{
 		Mass: 1.25,
 		G:    9.81,
-		Hz:   100.0, // Each 10 ms, like UDP sent by Liftoff
+		Hz:   1.0, // Set to 100Hz to get each 10 ms, like UDP sent by Liftoff
 
 		Pos: PosGains{
 			Kp:       Vec3{1.2, 1.2, 2.5},
@@ -656,7 +656,7 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	desiredIncrement := Vec3{20, 10, 15} // move from first successful telemetry
+	desiredIncrement := Vec3{10, 0, 0} // move from first successful telemetry
 	positionDesired := add(float32SliceToVec3(firstDatagram.Position), desiredIncrement)
 
 	fmt.Printf("Navigate to position %v\n", positionDesired)
