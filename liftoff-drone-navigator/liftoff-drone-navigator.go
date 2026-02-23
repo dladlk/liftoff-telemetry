@@ -270,8 +270,8 @@ type ControllerConfig struct {
 }
 
 type ControllerState struct {
-	IntegralPositionalError       Vec3
-	lastL, lastLH, lastRV, lastRH float64
+	IntegralPositionalError        Vec3
+	lastLV, lastLH, lastRV, lastRH float64
 }
 
 type Controller struct {
@@ -403,7 +403,7 @@ func rateLimit(x, last, maxDelta float64) float64 {
 	return x
 }
 
-const i16Max = 32767
+const i16Max = math.MaxInt16
 
 func toInt16Signed(norm float64) int16 {
 	n := clamp(norm, -1, 1)
@@ -413,7 +413,7 @@ func toInt16Signed(norm float64) int16 {
 // Get value in range -32767..32767 (math.MinInt16+1..math.MaxInt16) corresponding to 0..1
 func ToInt16Uncentered01(x float64) int16 {
 	x = clamp(x, 0, 1)
-	return int16(math.Round(x * i16Max))
+	return int16(math.MinInt16 + 1 + math.Round(2*x*i16Max))
 }
 
 // RH (right-horiz) : roll rate  → normalized by MaxRollRate
@@ -601,10 +601,10 @@ func NewControllerConfig() ControllerConfig {
 			MaxYawRate:   3.0,
 		},
 		Throttle: ThrottleMap{
-			HoverStick:       0.5, // hover mid-stick (uncentered mode)
-			Slope:            0.5, // 50% stick per 100% thrust delta around hover
-			Centered:         true,
-			CenteredSpan:     1.0, // used only if Centered=true
+			HoverStick:       0.5,   // hover mid-stick (uncentered mode)
+			Slope:            0.5,   // 50% stick per 100% thrust delta around hover
+			Centered:         false, // We are not centered throttle because 0 is not 0 - it is 50% of max spin of motors... And we should convert [0,1] to [-32000,+32000]
+			CenteredSpan:     1.0,   // used only if Centered=true
 			Deadzone:         0.03,
 			RateLimitPerTick: 0.05,
 		},

@@ -2,6 +2,8 @@ package main_test
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -63,4 +65,24 @@ type TestSetpointProvider struct{}
 
 func (m *TestSetpointProvider) Desired(ctx context.Context, now time.Time) (main.Setpoint, error) {
 	return main.Setpoint{}, nil
+}
+
+func TestToInt16Uncentered01(t *testing.T) {
+	tests := []struct {
+		x    float64
+		want int16
+	}{
+		{0, math.MinInt16 + 1},
+		{0.05, math.MinInt16 + 2 + int16(math.Round(math.MaxInt16)*0.1)},
+		{0.5, 0},
+		{1, math.MaxInt16},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%f", tt.x), func(t *testing.T) {
+			got := main.ToInt16Uncentered01(tt.x)
+			if got != tt.want {
+				t.Errorf("ToInt16Uncentered01() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
