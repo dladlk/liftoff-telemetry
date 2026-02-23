@@ -162,7 +162,7 @@ type Telemetry struct {
 }
 
 func (t Telemetry) String() string {
-	return fmt.Sprintf("%d) %s %s", t.Index, t.Position, t.Velocity)
+	return fmt.Sprintf("% 5d) %s %s", t.Index, t.Position, t.Velocity)
 }
 
 type TelemetryProvider interface {
@@ -553,7 +553,11 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 	Rd, T := attitudeAndThrustFromAccelYaw(a_c, c.cfg.G, sp.PsiD, c.cfg.Mass)
 
 	// 3) Map to ACRO sticks (rates + throttle)
-	return c.toAcroJoystick(tel, sp, Rd, T)
+	j := c.toAcroJoystick(tel, sp, Rd, T)
+
+	fmt.Printf("T: %s -> %s\n", tel, j)
+
+	return j
 }
 
 //
