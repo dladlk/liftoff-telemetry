@@ -154,7 +154,7 @@ func wrapPi(a float64) float64 {
 type Telemetry struct {
 	Index    int
 	Time     time.Time
-	Position Vec3 // position (world, m)
+	Position Vec3 // position (world, m) as x East, y North, z Up
 	Velocity Vec3 // velocity (world, m/s)
 	Rotation Mat3 // rotation (body->world)
 	// NOT USED in calculation???
@@ -218,8 +218,8 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 	tel := Telemetry{
 		Index:    index,
 		Time:     time.Now(),
-		Position: datagramXZYToVec3(datagram.Position),
-		Velocity: datagramXZYToVec3(datagram.Velocity),
+		Position: liftoffDatagramXZYToVec3(datagram.Position),
+		Velocity: liftoffDatagramXZYToVec3(datagram.Velocity),
 		Rotation: R,
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
 		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
@@ -227,8 +227,11 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 	return tel
 }
 
-func datagramXZYToVec3(f [3]float32) Vec3 {
-	// Liftoff telemetry encodes HEIGHT above ground into f[1], not f[2]!!! So actually we recieve it as x,z,y
+// Expected Telemetry format: ENU (x East, y North, z Up) - latitude, longtitude, altitude
+//
+//	Liftoff uses a left-handed, Y-Up coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward.
+func liftoffDatagramXZYToVec3(f [3]float32) Vec3 {
+	// So actually we recieve it as x,z,y
 	return Vec3{float64(f[0]), float64(f[2]), float64(f[1])}
 }
 
@@ -661,7 +664,7 @@ func main() {
 	for {
 		dt, _, ok := tel.TelemetryListener.LastDatagram()
 		if ok {
-			startPosition = datagramXZYToVec3(dt.Position)
+			startPosition = liftoffDatagramXZYToVec3(dt.Position)
 			break
 		}
 		time.Sleep(100 * time.Millisecond)

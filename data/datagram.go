@@ -12,7 +12,7 @@ import (
 
 type Datagram struct {
 	Timestamp float32    `desc:"current timestamp of the drone's flight, seconds. This value is reset to zero when the drone is reset"`
-	Position  [3]float32 `desc:"world position as a 3D coordinate, meters."`
+	Position  [3]float32 `desc:"world position as a 3D coordinate, meters, where Y - altitude: a left-handed, Y-Up coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward."`
 	Attitude  [4]float32 `desc:"world attitude as a quaternion X, Y, Z, W, [-1,1]. Convert to degress with vector.AttentionQuaternionToEulerDegrees"`
 	Velocity  [3]float32 `desc:"linear velocity as a 3D vector X, Y, Z in world-space, meters/second. To get velocity in local-space, use Attitude and https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fmath.stackexchange.com%2Fa%2F3209449 )"`
 	Gyro      [3]float32 `desc:"angular velocity rates, represented with three components in the order: pitch, roll and yaw. The unit scale is in degrees/second"`
