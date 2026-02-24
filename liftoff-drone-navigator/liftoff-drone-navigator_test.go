@@ -59,7 +59,7 @@ func (t *TestTelemetryProvider) Read(ctx context.Context) (main.Telemetry, bool,
 
 type TestJoystick struct{}
 
-func (a *TestJoystick) SendJoystick(ctx context.Context, joystickPosition main.JoystickPosition) error {
+func (a *TestJoystick) SendJoystick(joystickPosition main.JoystickPosition) error {
 	return nil
 }
 
