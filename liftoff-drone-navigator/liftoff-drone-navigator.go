@@ -632,7 +632,7 @@ func NewControllerConfig() ControllerConfig {
 			MaxYawRate:   3.0,
 		},
 		Throttle: ThrottleMap{
-			HoverStick:       0.5,   // hover mid-stick (uncentered mode)
+			HoverStick:       0.25,  // hover mid-stick (uncentered mode)
 			Slope:            0.5,   // 50% stick per 100% thrust delta around hover
 			Centered:         false, // We are not centered throttle because 0 is not 0 - it is 50% of max spin of motors... And we should convert [0,1] to [-32000,+32000]
 			CenteredSpan:     1.0,   // used only if Centered=true
