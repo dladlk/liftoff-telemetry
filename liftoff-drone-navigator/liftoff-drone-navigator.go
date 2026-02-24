@@ -24,6 +24,10 @@ func (t Vec3) String() string {
 
 type Mat3 [3][3]float64
 
+func (m Mat3) String() string {
+	return fmt.Sprintf("[[% 5.2f % 5.2f % 5.2f][% 5.2f % 5.2f % 5.2f][% 5.2f % 5.2f % 5.2f]]", m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2])
+}
+
 func add(a, b Vec3) Vec3         { return Vec3{a[0] + b[0], a[1] + b[1], a[2] + b[2]} }
 func sub(a, b Vec3) Vec3         { return Vec3{a[0] - b[0], a[1] - b[1], a[2] - b[2]} }
 func mul(a Vec3, s float64) Vec3 { return Vec3{a[0] * s, a[1] * s, a[2] * s} }
@@ -343,11 +347,11 @@ func (c *Controller) positionLoop(position, velocity Vec3, sp Setpoint, dt float
 }
 
 // 2) From desired acceleration (a_c) and yaw (psi_d) to desired attitude (Rd) and thrust (T)
-func attitudeAndThrustFromAccelYaw(a_c Vec3, g float64, psiD float64, mass float64) (Rd Mat3, T float64) {
+func attitudeAndThrustFromAccelYaw(a_c Vec3, g float64, psiD float64, mass float64) (Rd Mat3, thrust float64) {
 	gvec := Vec3{0, 0, -g}
-	accStar := sub(a_c, gvec) // a_c - g
-	b3d := normalize(accStar) // desired body z axis (world)
-	T = mass * norm(accStar)  // collective thrust
+	accStar := sub(a_c, gvec)     // a_c - g
+	b3d := normalize(accStar)     // desired body z axis (world)
+	thrust = mass * norm(accStar) // collective thrust
 
 	// build body x-axis to honor desired yaw
 	b1c := Vec3{math.Cos(psiD), math.Sin(psiD), 0}
@@ -550,13 +554,17 @@ func (c *Controller) Run(ctx context.Context) error {
 
 func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) JoystickPosition {
 	// 1) Position loop -> desired acceleration
-	a_c := c.positionLoop(tel.Position, tel.Velocity, sp, c.cfg.Dt)
+	acceleration := c.positionLoop(tel.Position, tel.Velocity, sp, c.cfg.Dt)
 
-	// 2) Desired attitude from yaw + thrust direction
-	Rd, T := attitudeAndThrustFromAccelYaw(a_c, c.cfg.G, sp.PsiD, c.cfg.Mass)
+	fmt.Printf("DEBUG: 1) Position lookup: acceleration: %s\n", acceleration)
+
+	// 2) Desired attitude from yaw and thrust direction
+	Rd, thrust := attitudeAndThrustFromAccelYaw(acceleration, c.cfg.G, sp.PsiD, c.cfg.Mass)
+
+	fmt.Printf("DEBUG: 2) Attitude and thrust: %f %s\n", thrust, Rd)
 
 	// 3) Map to ACRO sticks (rates + throttle)
-	j := c.toAcroJoystick(tel, sp, Rd, T)
+	j := c.toAcroJoystick(tel, sp, Rd, thrust)
 
 	fmt.Printf("T: %s -> %s\n", tel, j)
 
