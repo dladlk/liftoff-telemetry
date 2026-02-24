@@ -632,7 +632,7 @@ func NewControllerConfig() ControllerConfig {
 			MaxYawRate:   3.0,
 		},
 		Throttle: ThrottleMap{
-			HoverStick:       0.25,  // hover mid-stick (uncentered mode)
+			HoverStick:       0.25,  // hover mid-stick (uncentered mode). Move started with 0.305180
 			Slope:            0.5,   // 50% stick per 100% thrust delta around hover
 			Centered:         false, // We are not centered throttle because 0 is not 0 - it is 50% of max spin of motors... And we should convert [0,1] to [-32000,+32000]
 			CenteredSpan:     1.0,   // used only if Centered=true
@@ -718,7 +718,10 @@ func main() {
 	joy.SendJoystick(JoystickPosition{math.MinInt16, 0, 0, 0})
 	time.Sleep(500 * time.Millisecond)
 
-	fmt.Println("Start navigation")
+	fmt.Println("Throttle up until start moving and stay to define hover value")
+	detectHoverThrottle(ctrl)
+
+	fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
 
 	// Stop after some time
 	go func() {
@@ -729,4 +732,31 @@ func main() {
 	if err := ctrl.Run(ctx); err != nil && err != context.Canceled {
 		fmt.Println("controller stopped with error:", err)
 	}
+}
+
+func detectHoverThrottle(c *Controller) error {
+	throttle := int16(math.MinInt16)
+	pos := JoystickPosition{}
+
+	for {
+		pos.LV = throttle
+		if err := c.act.SendJoystick(pos); err != nil {
+			return fmt.Errorf("joystick send: %w", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+		t, ok, _ := c.tprov.ReadTelemetry()
+		if ok {
+			if t.Position[2] > 0.01 {
+				break
+			}
+		}
+		throttle += 50
+	}
+
+	//time.Sleep(10 * time.Second)
+
+	throttleHover := float64(throttle-math.MinInt16) / float64(math.MaxInt16-math.MinInt16)
+	fmt.Printf("Started to move with throttle %d, set it to c.cfg.Throttle.HoverStick as %f\n", throttle, throttleHover)
+	c.cfg.Throttle.HoverStick = throttleHover
+	return nil
 }
