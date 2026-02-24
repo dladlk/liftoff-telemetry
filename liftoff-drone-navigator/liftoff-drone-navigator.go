@@ -222,8 +222,8 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 	tel := Telemetry{
 		Index:    index,
 		Time:     time.Now(),
-		Position: liftoffDatagramXZYToVec3(datagram.Position),
-		Velocity: liftoffDatagramXZYToVec3(datagram.Velocity),
+		Position: liftoffDatagramYZXToVec3(datagram.Position),
+		Velocity: liftoffDatagramYZXToVec3(datagram.Velocity),
 		Rotation: R,
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
 		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
@@ -232,11 +232,11 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 }
 
 // Expected Telemetry format: ENU (x East, y North, z Up) - latitude, longtitude, altitude
-//
-//	Liftoff uses a left-handed, Y-Up coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward.
-func liftoffDatagramXZYToVec3(f [3]float32) Vec3 {
-	// So actually we recieve it as x,z,y
-	return Vec3{float64(f[0]), float64(f[2]), float64(f[1])}
+// Liftoff uses a left-handed, Y-Up coordinate system: the positive x-axis points to the right, the positive y-axis points up, and the positive z-axis points forward.
+// So it means that actually we receive coordinates as yzx (pos 0=y, pos 1=z, pos 2=x), so convert to x,y,z vector we should take them as 2,0,1
+func liftoffDatagramYZXToVec3(f [3]float32) Vec3 {
+	// So actually we recieve it as x,z,y - y,z,x
+	return Vec3{float64(f[2]), float64(f[0]), float64(f[1])}
 }
 
 //
@@ -682,7 +682,7 @@ func main() {
 	for {
 		dt, _, ok := tel.TelemetryListener.LastDatagram()
 		if ok {
-			startPosition = liftoffDatagramXZYToVec3(dt.Position)
+			startPosition = liftoffDatagramYZXToVec3(dt.Position)
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
