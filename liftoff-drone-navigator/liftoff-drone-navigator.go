@@ -170,7 +170,7 @@ func (t Telemetry) String() string {
 }
 
 type TelemetryProvider interface {
-	ReadTelemetry(ctx context.Context) (Telemetry, bool, error)
+	ReadTelemetry() (Telemetry, bool, error)
 }
 
 // Desired setpoint: position/velocity/acceleration and yaw (heading)
@@ -204,7 +204,7 @@ type LiftoffTelemetryProvider struct {
 	TelemetryListener *track.TelemetryListener
 }
 
-func (l *LiftoffTelemetryProvider) ReadTelemetry(ctx context.Context) (Telemetry, bool, error) {
+func (l *LiftoffTelemetryProvider) ReadTelemetry() (Telemetry, bool, error) {
 	if !l.TelemetryListener.Running {
 		fmt.Printf("Listener not running...\n")
 		return Telemetry{}, false, nil
@@ -536,7 +536,7 @@ func (c *Controller) Run(ctx context.Context) error {
 
 			return ctx.Err()
 		case now := <-ticker.C:
-			tel, ok, err := c.tprov.ReadTelemetry(ctx)
+			tel, ok, err := c.tprov.ReadTelemetry()
 			if !ok {
 				continue
 			}

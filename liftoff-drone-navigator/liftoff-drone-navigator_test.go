@@ -53,7 +53,7 @@ func TestCalculate(t *testing.T) {
 
 type TestTelemetryProvider struct{}
 
-func (t *TestTelemetryProvider) ReadTelemetry(ctx context.Context) (main.Telemetry, bool, error) {
+func (t *TestTelemetryProvider) ReadTelemetry() (main.Telemetry, bool, error) {
 	return main.Telemetry{}, true, nil
 }
 
