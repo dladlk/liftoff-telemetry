@@ -295,6 +295,10 @@ type ControllerState struct {
 	lastLV, lastLH, lastRV, lastRH float64
 }
 
+func (s ControllerState) String() string {
+	return fmt.Sprintf("IPE %s last:[% 4.1f % 4.1f % 4.1f % 4.1f]", s.IntegralPositionalError, s.lastLV, s.lastLH, s.lastRV, s.lastRH)
+}
+
 type Controller struct {
 	cfg   ControllerConfig
 	state ControllerState
@@ -553,21 +557,26 @@ func (c *Controller) Run(ctx context.Context) error {
 }
 
 func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) JoystickPosition {
+	fmt.Printf("\n************** Cycle %d ***************\n", c.state.Index)
+
 	// 1) Position loop -> desired acceleration
+
+	fmt.Printf("INPUT: telemetry %s , setpoint pos: %s\n", tel, sp.PositionDesired)
+
 	acceleration := c.positionLoop(tel.Position, tel.Velocity, sp, c.cfg.Dt)
 
-	fmt.Printf("DEBUG: 1) Position lookup: acceleration: %s\n", acceleration)
+	fmt.Printf("1) Acceleration: %s\n", acceleration)
 
 	// 2) Desired attitude from yaw and thrust direction
 	Rd, thrust := attitudeAndThrustFromAccelYaw(acceleration, c.cfg.G, sp.PsiD, c.cfg.Mass)
 
-	fmt.Printf("DEBUG: 2) Attitude and thrust: %f %s\n", thrust, Rd)
+	fmt.Printf("2) Thrust, attitude and state: %f %s %s\n", thrust, Rd, c.state)
 
 	// 3) Map to ACRO sticks (rates + throttle)
 	j := c.toAcroJoystick(tel, sp, Rd, thrust)
 
-	fmt.Printf("T: %s -> %s\n", tel, j)
-
+	fmt.Printf("3) Output joystick: %s\n", j)
+	c.state.Index++
 	return j
 }
 
