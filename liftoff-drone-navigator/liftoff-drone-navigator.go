@@ -197,7 +197,7 @@ type SetpointProvider interface {
 //   - rightHoriz: roll  rate ([-MaxFloat32, +MaxFloat32])
 type JoystickActuator interface {
 	// ACRO: LV=throttle [0..+32767] (uncentered) or [-32767..+32767] (centered)
-	SendJoystick(ctx context.Context, joystickPosition JoystickPosition) error
+	SendJoystick(joystickPosition JoystickPosition) error
 }
 
 type LiftoffTelemetryProvider struct {
@@ -531,7 +531,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			fmt.Printf("Reset joystick to down position but not full down on finish")
-			c.act.SendJoystick(ctx, JoystickPosition{math.MinInt16 + 15000, 0, 0, 0})
+			c.act.SendJoystick(JoystickPosition{math.MinInt16 + 15000, 0, 0, 0})
 			time.Sleep(1 * time.Second)
 
 			return ctx.Err()
@@ -550,7 +550,7 @@ func (c *Controller) Run(ctx context.Context) error {
 			}
 
 			joystickPosition := CalculateJoysticksPosition(c, tel, sp)
-			if err := c.act.SendJoystick(ctx, joystickPosition); err != nil {
+			if err := c.act.SendJoystick(joystickPosition); err != nil {
 				return fmt.Errorf("joystick send: %w", err)
 			}
 		}
@@ -605,7 +605,7 @@ type RealJoystick struct {
 	client track.JoystickControlClient
 }
 
-func (a *RealJoystick) SendJoystick(ctx context.Context, joystickPosition JoystickPosition) error {
+func (a *RealJoystick) SendJoystick(joystickPosition JoystickPosition) error {
 	return a.client.Send(joystickPosition.LV, joystickPosition.LH, joystickPosition.RV, joystickPosition.RH)
 }
 
@@ -715,7 +715,7 @@ func main() {
 
 	// Before navigation, start props by setting throttle to min value for half second
 	fmt.Println("Starting engine")
-	joy.SendJoystick(ctx, JoystickPosition{math.MinInt16, 0, 0, 0})
+	joy.SendJoystick(JoystickPosition{math.MinInt16, 0, 0, 0})
 	time.Sleep(500 * time.Millisecond)
 
 	fmt.Println("Start navigation")
