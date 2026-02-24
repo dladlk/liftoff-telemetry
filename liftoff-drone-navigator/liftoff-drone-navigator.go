@@ -291,6 +291,7 @@ type ControllerConfig struct {
 }
 
 type ControllerState struct {
+	Index                          int
 	IntegralPositionalError        Vec3
 	lastLV, lastLH, lastRV, lastRH float64
 }
@@ -687,7 +688,10 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	desiredIncrement := Vec3{0, 0, 100} // move from first successful telemetry
+	desiredAltitude := 5
+	maxTimeSeconds := 20
+
+	desiredIncrement := Vec3{0, 0, float64(desiredAltitude)} // move from first successful telemetry
 	positionDesired := add(startPosition, desiredIncrement)
 
 	fmt.Printf("Init pos %v\n", startPosition)
@@ -716,8 +720,8 @@ func main() {
 
 	// Stop after some time
 	go func() {
-		time.Sleep(10 * time.Second)
-		fmt.Println("Stop controller after short period")
+		time.Sleep(time.Duration(maxTimeSeconds) * time.Second)
+		fmt.Printf("Stop controller after %d seconds", maxTimeSeconds)
 		cancel()
 	}()
 	if err := ctrl.Run(ctx); err != nil && err != context.Canceled {
