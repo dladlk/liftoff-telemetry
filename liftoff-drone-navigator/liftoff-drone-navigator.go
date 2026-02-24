@@ -525,9 +525,9 @@ func (c *Controller) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			// Reset joystick to down position but not full down on finish
-			c.act.SendJoystick(ctx, JoystickPosition{math.MinInt16 + 5000, 0, 0, 0})
-			time.Sleep(500 * time.Millisecond)
+			fmt.Printf("Reset joystick to down position but not full down on finish")
+			c.act.SendJoystick(ctx, JoystickPosition{math.MinInt16 + 15000, 0, 0, 0})
+			time.Sleep(1 * time.Second)
 
 			return ctx.Err()
 		case now := <-ticker.C:
