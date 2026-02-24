@@ -1,7 +1,6 @@
 package main_test
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"testing"
@@ -65,7 +64,7 @@ func (a *TestJoystick) SendJoystick(joystickPosition main.JoystickPosition) erro
 
 type TestSetpointProvider struct{}
 
-func (m *TestSetpointProvider) GetDesiredSetpoint(ctx context.Context, now time.Time) (main.Setpoint, error) {
+func (m *TestSetpointProvider) GetDesiredSetpoint(now time.Time) (main.Setpoint, error) {
 	return main.Setpoint{}, nil
 }
 

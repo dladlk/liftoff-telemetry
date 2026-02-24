@@ -183,7 +183,7 @@ type Setpoint struct {
 	HasAccelerationDesired bool
 }
 type SetpointProvider interface {
-	GetDesiredSetpoint(ctx context.Context, now time.Time) (Setpoint, error)
+	GetDesiredSetpoint(now time.Time) (Setpoint, error)
 }
 
 /* ============================
@@ -544,7 +544,7 @@ func (c *Controller) Run(ctx context.Context) error {
 				fmt.Printf("telemetry read: %v\n", err)
 				continue
 			}
-			sp, err := c.sprov.GetDesiredSetpoint(ctx, now)
+			sp, err := c.sprov.GetDesiredSetpoint(now)
 			if err != nil {
 				return fmt.Errorf("setpoint read: %w", err)
 			}
@@ -590,7 +590,7 @@ type MockSetpoint struct {
 	PsiD            float64
 }
 
-func (m *MockSetpoint) GetDesiredSetpoint(ctx context.Context, now time.Time) (Setpoint, error) {
+func (m *MockSetpoint) GetDesiredSetpoint(now time.Time) (Setpoint, error) {
 	return Setpoint{
 		PositionDesired:        m.PositionDesired,
 		VelocityDesired:        Vec3{0, 0, 0}, // stop there
