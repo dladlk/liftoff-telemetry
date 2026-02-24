@@ -688,10 +688,12 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	desiredFront := 0
+	desiredRight := 0
 	desiredAltitude := 5
 	maxTimeSeconds := 20
 
-	desiredIncrement := Vec3{0, 0, float64(desiredAltitude)} // move from first successful telemetry
+	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
 	positionDesired := add(startPosition, desiredIncrement)
 
 	fmt.Printf("Init pos %v\n", startPosition)
