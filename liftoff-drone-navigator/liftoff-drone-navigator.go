@@ -605,7 +605,7 @@ type MockSetpoint struct {
 func (m *MockSetpoint) GetDesiredSetpoint(now time.Time, tel Telemetry) (Setpoint, error) {
 	if !m.moved {
 		sinceStart := now.Sub(m.Start).Seconds()
-		if sinceStart >= 10 {
+		if sinceStart >= 5 {
 			m.PositionDesired = Vec3{tel.Position[0], tel.Position[1], tel.Position[2] + 5}
 			fmt.Printf("Change setpoint to %s\n", m.PositionDesired)
 			m.moved = true
@@ -633,7 +633,7 @@ func NewControllerConfig() ControllerConfig {
 	cfg := ControllerConfig{
 		Mass: 0.573, // Rotor Riot CL1
 		G:    9.81,
-		Hz:   100.0, // Set to 100Hz to get each 10 ms, like UDP sent by Liftoff
+		Hz:   10.0, // Set to 100Hz to get each 10 ms, like UDP sent by Liftoff
 
 		Pos: PosGains{
 			Kp:       Vec3{1.2, 1.2, 2.5},
@@ -713,7 +713,7 @@ func main() {
 	desiredFront := 0
 	desiredRight := 0
 	desiredAltitude := 5
-	maxTimeSeconds := 20
+	maxTimeSeconds := 10
 	calculateThrottleHover := false
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
