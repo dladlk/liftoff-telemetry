@@ -710,6 +710,8 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+// When we run in debug, compilation takes enough time to switch to liftoff so no need to wait. When run built version - set sleepSecondsBeforeStart to 3 seconds
+	sleepSecondsBeforeStart := 0
 	desiredFront := 0
 	desiredRight := 0
 	desiredAltitude := 5
@@ -735,8 +737,8 @@ func main() {
 	defer cancel()
 
 	// Before starting, sleep 3 seconds to switch to LiftOff
-	fmt.Println("Before navigation, sleep 3 seconds to switch to Liftoff program")
-	time.Sleep(3 * time.Second)
+	fmt.Printf("Before navigation, sleep %d seconds to switch to Liftoff program\n", sleepSecondsBeforeStart)
+	time.Sleep(time.Duration(sleepSecondsBeforeStart) * time.Second)
 
 	// Before navigation, start props by setting throttle to min value for half second
 	fmt.Println("Starting engine")
