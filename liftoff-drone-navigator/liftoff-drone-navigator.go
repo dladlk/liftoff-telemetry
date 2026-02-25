@@ -728,6 +728,8 @@ func main() {
 	}
 
 	ctrl := NewController(cfg, tel, sp, joy)
+	// To speedup initial movement, let's start with HoverStick value as Last value - so we do not waist 5 cycles on slowly growing throttle
+	ctrl.state.lastLV = cfg.Throttle.HoverStick
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
