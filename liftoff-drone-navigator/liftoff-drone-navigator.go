@@ -558,25 +558,35 @@ func (c *Controller) Run(ctx context.Context) error {
 }
 
 func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) JoystickPosition {
-	fmt.Printf("\n************** Cycle %d ***************\n", c.state.Index)
+	if showDebugCalculation {
+		fmt.Printf("\n************** Cycle %d ***************\n", c.state.Index)
+	}
 
 	// 1) Position loop -> desired acceleration
 
-	fmt.Printf("INPUT: telemetry %s , setpoint pos: %s\n", tel, sp.PositionDesired)
+	if showDebugCalculation {
+		fmt.Printf("INPUT: telemetry %s , setpoint pos: %s\n", tel, sp.PositionDesired)
+	}
 
 	acceleration := c.positionLoop(tel.Position, tel.Velocity, sp, c.cfg.Dt)
 
-	fmt.Printf("1) Acceleration: %s\n", acceleration)
+	if showDebugCalculation {
+		fmt.Printf("1) Acceleration: %s\n", acceleration)
+	}
 
 	// 2) Desired attitude from yaw and thrust direction
 	Rd, thrust := attitudeAndThrustFromAccelYaw(acceleration, c.cfg.G, sp.PsiD, c.cfg.Mass)
 
-	fmt.Printf("2) Thrust, attitude and state: %f %s %s\n", thrust, Rd, c.state)
+	if showDebugCalculation {
+		fmt.Printf("2) Thrust, attitude and state: %f %s %s\n", thrust, Rd, c.state)
+	}
 
 	// 3) Map to ACRO sticks (rates + throttle)
 	j := c.toAcroJoystick(tel, sp, Rd, thrust)
 
-	fmt.Printf("3) Output joystick: %s\n", j)
+	if showDebugCalculation {
+		fmt.Printf("3) Output joystick: %s\n", j)
+	}
 	c.state.Index++
 	return j
 }
@@ -642,10 +652,10 @@ func NewControllerConfig() ControllerConfig {
 			MaxYawRate:   3.0,
 		},
 		Throttle: ThrottleMap{
-			HoverStick:       0.25,  // hover mid-stick (uncentered mode). Move started with 0.305180
-			Slope:            0.5,   // 50% stick per 100% thrust delta around hover
-			Centered:         false, // We are not centered throttle because 0 is not 0 - it is 50% of max spin of motors... And we should convert [0,1] to [-32000,+32000]
-			CenteredSpan:     1.0,   // used only if Centered=true
+			HoverStick:       0.305180, // hover mid-stick (uncentered mode). Move started with 0.305180
+			Slope:            0.5,      // 50% stick per 100% thrust delta around hover
+			Centered:         false,    // We are not centered throttle because 0 is not 0 - it is 50% of max spin of motors... And we should convert [0,1] to [-32000,+32000]
+			CenteredSpan:     1.0,      // used only if Centered=true
 			Deadzone:         0.03,
 			RateLimitPerTick: 0.05,
 		},
@@ -658,6 +668,8 @@ func NewControllerConfig() ControllerConfig {
 	cfg.Dt = 1.0 / cfg.Hz
 	return cfg
 }
+
+const showDebugCalculation = false
 
 func main() {
 	flag.Usage = func() {
@@ -702,6 +714,7 @@ func main() {
 	desiredRight := 0
 	desiredAltitude := 5
 	maxTimeSeconds := 20
+	calculateThrottleHover := false
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
 	positionDesired := add(startPosition, desiredIncrement)
@@ -728,10 +741,11 @@ func main() {
 	joy.SendJoystick(JoystickPosition{math.MinInt16, 0, 0, 0})
 	time.Sleep(500 * time.Millisecond)
 
-	fmt.Println("Throttle up until start moving and stay to define hover value")
-	detectHoverThrottle(ctrl)
-
-	fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
+	if calculateThrottleHover {
+		fmt.Println("Throttle up until start moving and stay to define hover value")
+		detectHoverThrottle(ctrl)
+		fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
+	}
 
 	sp.Start = time.Now()
 
