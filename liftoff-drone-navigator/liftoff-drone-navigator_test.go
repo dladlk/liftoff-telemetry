@@ -64,7 +64,7 @@ func (a *TestJoystick) SendJoystick(joystickPosition main.JoystickPosition) erro
 
 type TestSetpointProvider struct{}
 
-func (m *TestSetpointProvider) GetDesiredSetpoint(now time.Time) (main.Setpoint, error) {
+func (m *TestSetpointProvider) GetDesiredSetpoint(now time.Time, tel main.Telemetry) (main.Setpoint, error) {
 	return main.Setpoint{}, nil
 }
 

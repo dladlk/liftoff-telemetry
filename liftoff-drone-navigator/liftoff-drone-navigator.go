@@ -183,7 +183,7 @@ type Setpoint struct {
 	HasAccelerationDesired bool
 }
 type SetpointProvider interface {
-	GetDesiredSetpoint(now time.Time) (Setpoint, error)
+	GetDesiredSetpoint(now time.Time, tel Telemetry) (Setpoint, error)
 }
 
 /* ============================
@@ -544,7 +544,7 @@ func (c *Controller) Run(ctx context.Context) error {
 				fmt.Printf("telemetry read: %v\n", err)
 				continue
 			}
-			sp, err := c.sprov.GetDesiredSetpoint(now)
+			sp, err := c.sprov.GetDesiredSetpoint(now, tel)
 			if err != nil {
 				return fmt.Errorf("setpoint read: %w", err)
 			}
@@ -602,11 +602,11 @@ type MockSetpoint struct {
 	moved           bool
 }
 
-func (m *MockSetpoint) GetDesiredSetpoint(now time.Time) (Setpoint, error) {
+func (m *MockSetpoint) GetDesiredSetpoint(now time.Time, tel Telemetry) (Setpoint, error) {
 	if !m.moved {
 		sinceStart := now.Sub(m.Start).Seconds()
 		if sinceStart >= 10 {
-			m.PositionDesired = Vec3{m.PositionDesired[0] + 0.5, m.PositionDesired[1], m.PositionDesired[2]}
+			m.PositionDesired = Vec3{tel.Position[0], tel.Position[1], tel.Position[2] + 5}
 			fmt.Printf("Change setpoint to %s\n", m.PositionDesired)
 			m.moved = true
 		}
@@ -633,7 +633,7 @@ func NewControllerConfig() ControllerConfig {
 	cfg := ControllerConfig{
 		Mass: 0.573, // Rotor Riot CL1
 		G:    9.81,
-		Hz:   1.0, // Set to 100Hz to get each 10 ms, like UDP sent by Liftoff
+		Hz:   100.0, // Set to 100Hz to get each 10 ms, like UDP sent by Liftoff
 
 		Pos: PosGains{
 			Kp:       Vec3{1.2, 1.2, 2.5},
