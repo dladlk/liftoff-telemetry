@@ -588,9 +588,19 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 type MockSetpoint struct {
 	PositionDesired Vec3
 	PsiD            float64
+	Start           time.Time
+	moved           bool
 }
 
 func (m *MockSetpoint) GetDesiredSetpoint(now time.Time) (Setpoint, error) {
+	if !m.moved {
+		sinceStart := now.Sub(m.Start).Seconds()
+		if sinceStart >= 10 {
+			m.PositionDesired = Vec3{m.PositionDesired[0] + 0.5, m.PositionDesired[1], m.PositionDesired[2]}
+			fmt.Printf("Change setpoint to %s\n", m.PositionDesired)
+			m.moved = true
+		}
+	}
 	return Setpoint{
 		PositionDesired:        m.PositionDesired,
 		VelocityDesired:        Vec3{0, 0, 0}, // stop there
@@ -722,6 +732,8 @@ func main() {
 	detectHoverThrottle(ctrl)
 
 	fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
+
+	sp.Start = time.Now()
 
 	// Stop after some time
 	go func() {
