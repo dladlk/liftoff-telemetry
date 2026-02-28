@@ -162,7 +162,8 @@ type Telemetry struct {
 	Velocity Vec3 // velocity (world, m/s)
 	Rotation Mat3 // rotation (body->world)
 	// NOT USED in calculation???
-	Omega Vec3 // body rates [p q r], rad/s
+	Omega    Vec3 // body rates [p q r], rad/s
+	Original lot_config.Datagram
 }
 
 func (t Telemetry) String() string {
@@ -226,7 +227,8 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 		Velocity: liftoffDatagramYZXToVec3(datagram.Velocity),
 		Rotation: R,
 		// Liftoff exports gyro as (pitch, roll, yaw) per example; map to body rates [p q r] carefully if needed
-		Omega: Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
+		Omega:    Vec3{float64(datagram.Gyro[1]), float64(datagram.Gyro[0]), float64(datagram.Gyro[2])},
+		Original: *datagram,
 	}
 	return tel
 }
@@ -710,13 +712,14 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-// When we run in debug, compilation takes enough time to switch to liftoff so no need to wait. When run built version - set sleepSecondsBeforeStart to 3 seconds
+	// When we run in debug, compilation takes enough time to switch to liftoff so no need to wait. When run built version - set sleepSecondsBeforeStart to 3 seconds
 	sleepSecondsBeforeStart := 0
 	desiredFront := 0
 	desiredRight := 0
 	desiredAltitude := 5
 	maxTimeSeconds := 10
-	calculateThrottleHover := false
+	doStartThrottleHoverDetection := false
+	doStartYawDirectionDetection := true
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
 	positionDesired := add(startPosition, desiredIncrement)
@@ -745,10 +748,14 @@ func main() {
 	joy.SendJoystick(JoystickPosition{math.MinInt16, 0, 0, 0})
 	time.Sleep(500 * time.Millisecond)
 
-	if calculateThrottleHover {
+	if doStartThrottleHoverDetection {
 		fmt.Println("Throttle up until start moving and stay to define hover value")
 		detectHoverThrottle(ctrl)
 		fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
+	}
+	if doStartYawDirectionDetection {
+		fmt.Println("Start to yaw click-wise (grow to 1 and further) on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields")
+		detectYawDirection(ctrl)
 	}
 
 	sp.Start = time.Now()
@@ -788,5 +795,32 @@ func detectHoverThrottle(c *Controller) error {
 	throttleHover := float64(throttle-math.MinInt16) / float64(math.MaxInt16-math.MinInt16)
 	fmt.Printf("Started to move with throttle %d, set it to c.cfg.Throttle.HoverStick as %f\n", throttle, throttleHover)
 	c.cfg.Throttle.HoverStick = throttleHover
+	return nil
+}
+
+func detectYawDirection(c *Controller) error {
+	pos := JoystickPosition{}
+	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.1)
+	c.act.SendJoystick(pos)
+	time.Sleep(1 * time.Second)
+
+	ts, _, _ := c.tprov.ReadTelemetry()
+	fmt.Printf("Start telemetry: %s", ts)
+
+	var yawValue float64
+	for {
+		yawValue += 0.01
+		pos.LH += toInt16Signed(yawValue)
+		if err := c.act.SendJoystick(pos); err != nil {
+			return fmt.Errorf("joystick send: %w", err)
+		}
+		time.Sleep(1 * time.Second)
+		t, _, _ := c.tprov.ReadTelemetry()
+		fmt.Printf("yaw=%.2f , telemetry: %s original %+v", yawValue, t, t.Original)
+		if yawValue > 0.8 {
+			break
+		}
+	}
+
 	return nil
 }
