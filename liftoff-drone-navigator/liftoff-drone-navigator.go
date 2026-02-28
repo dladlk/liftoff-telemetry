@@ -517,7 +517,7 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 		c.state.lastLV = raw
 		lv = ToInt16Uncentered01(raw)
 	}
-	return JoystickPosition{lv, lh, rv, rh}
+	return JoystickPosition{LV: lv, LH: lh, RV: rv, RH: rh}
 }
 
 //
