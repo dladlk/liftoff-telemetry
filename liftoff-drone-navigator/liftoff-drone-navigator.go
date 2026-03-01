@@ -799,28 +799,48 @@ func detectHoverThrottle(c *Controller) error {
 }
 
 func detectYawDirection(c *Controller) error {
+	startDetection := time.Now()
 	pos := JoystickPosition{}
+	// Slowly go up
 	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.1)
+	c.act.SendJoystick(pos)
+	time.Sleep(1 * time.Second)
+	// Hover
+	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
 	c.act.SendJoystick(pos)
 	time.Sleep(1 * time.Second)
 
 	ts, _, _ := c.tprov.ReadTelemetry()
 	fmt.Printf("Initial telemetry value: %s\n", ts)
 
-	var yawValue float64
+	clockWise := true
+	var yawValue float64 = 0.1
 	for {
-		yawValue += 0.1
 		pos.LH = ToInt16Signed(yawValue)
 		if err := c.act.SendJoystick(pos); err != nil {
 			return fmt.Errorf("joystick send: %w", err)
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
-		fmt.Printf("yaw=%4.2f, LH=%6d  telemetry: %s original %s\n", yawValue, pos.LH, t, t.Original)
-		if yawValue > 1.0 {
+		fmt.Printf("yaw=% 5.2f, LH=% 6d  telemetry: %s original %s\n", yawValue, pos.LH, t, t.Original)
+
+		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
+
+		if clockWise {
+			if eulerAngles[1] > 45.0 {
+				yawValue = -0.1
+				clockWise = false
+			}
+		} else {
+			if eulerAngles[1] < -45.0 {
+				yawValue = 0.1
+				clockWise = true
+			}
+		}
+
+		if time.Since(startDetection).Seconds() > 30 {
 			break
 		}
 	}
-
 	return nil
 }
