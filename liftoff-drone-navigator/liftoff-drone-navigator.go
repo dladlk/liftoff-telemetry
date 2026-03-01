@@ -717,7 +717,7 @@ func main() {
 	desiredFront := 0
 	desiredRight := 0
 	desiredAltitude := 5
-	maxTimeSeconds := 10
+	maxTimeSeconds := 1
 	doStartThrottleHoverDetection := false
 	doStartYawDirectionDetection := true
 
@@ -754,7 +754,7 @@ func main() {
 		fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
 	}
 	if doStartYawDirectionDetection {
-		fmt.Println("Start to yaw click-wise (grow to 1 and further) on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields")
+		fmt.Println("Start to yaw clock-wise (grow to 1 and further) on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields")
 		detectYawDirection(ctrl)
 	}
 
@@ -805,7 +805,7 @@ func detectYawDirection(c *Controller) error {
 	time.Sleep(1 * time.Second)
 
 	ts, _, _ := c.tprov.ReadTelemetry()
-	fmt.Printf("Start telemetry: %s", ts)
+	fmt.Printf("Initial telemetry value: %s\n", ts)
 
 	var yawValue float64
 	for {
@@ -816,7 +816,7 @@ func detectYawDirection(c *Controller) error {
 		}
 		time.Sleep(1 * time.Second)
 		t, _, _ := c.tprov.ReadTelemetry()
-		fmt.Printf("yaw=%.2f , telemetry: %s original %+v", yawValue, t, t.Original)
+		fmt.Printf("yaw=%4.2f, LH=%6d  telemetry: %s original %+v\n", yawValue, pos.LH, t, t.Original)
 		if yawValue > 0.8 {
 			break
 		}
