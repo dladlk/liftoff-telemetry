@@ -433,7 +433,7 @@ func rateLimit(x, last, maxDelta float64) float64 {
 
 const i16Max = math.MaxInt16
 
-func toInt16Signed(norm float64) int16 {
+func ToInt16Signed(norm float64) int16 {
 	n := clamp(norm, -1, 1)
 	return int16(math.Round(n * i16Max))
 }
@@ -498,9 +498,9 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 	c.state.lastRV = rvNorm
 	c.state.lastLH = lhNorm
 
-	rh := toInt16Signed(rhNorm)
-	rv := toInt16Signed(rvNorm)
-	lh := toInt16Signed(lhNorm)
+	rh := ToInt16Signed(rhNorm)
+	rv := ToInt16Signed(rvNorm)
+	lh := ToInt16Signed(lhNorm)
 	var lv int16
 
 	if c.cfg.Throttle.Centered {
@@ -510,7 +510,7 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 		raw = applyDeadzone(raw, dz)
 		raw = rateLimit(raw, c.state.lastLV, rl)
 		c.state.lastLV = raw
-		lv = toInt16Signed(raw)
+		lv = ToInt16Signed(raw)
 	} else {
 		// Uncentered throttle in [0,1], HoverStick at rel=1
 		raw := c.cfg.Throttle.HoverStick + c.cfg.Throttle.Slope*(rel-1.0)
@@ -810,7 +810,7 @@ func detectYawDirection(c *Controller) error {
 	var yawValue float64
 	for {
 		yawValue += 0.01
-		pos.LH += toInt16Signed(yawValue)
+		pos.LH += ToInt16Signed(yawValue)
 		if err := c.act.SendJoystick(pos); err != nil {
 			return fmt.Errorf("joystick send: %w", err)
 		}
