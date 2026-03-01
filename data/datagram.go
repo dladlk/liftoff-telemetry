@@ -3,6 +3,7 @@ package lot_config
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"math"
 )
@@ -76,4 +77,34 @@ func (cur *Datagram) ParseDatagram(reader *bytes.Reader, fields *[]StreamDataTyp
 			}
 		}
 	}
+}
+
+func (d Datagram) String() string {
+	return fmt.Sprintf("Ts=%6.3f\t%s\t%s\t%s\t%s\t%s\t%s", d.Timestamp,
+		print3Big("Pos", d.Position),
+		print4Small("Att", d.Attitude),
+		print3Small("Vel", d.Velocity),
+		print3Big("Gyr", d.Gyro),
+		print4Small("Inp", d.Input),
+		printRPM("RPM", d.Motors, d.MotorRPM),
+	)
+}
+
+func print3Big(name string, v [3]float32) string {
+	return fmt.Sprintf("%s=[% 6.1f % 6.1f % 6.1f]", name, v[0], v[1], v[2])
+}
+
+func print3Small(name string, v [3]float32) string {
+	return fmt.Sprintf("%s=[% 4.3f % 4.3f % 4.3f]", name, v[0], v[1], v[2])
+}
+
+func print4Small(name string, v [4]float32) string {
+	return fmt.Sprintf("%s=[% 4.3f % 4.3f % 4.3f % 4.3f]", name, v[0], v[1], v[2], v[3])
+}
+
+func printRPM(name string, len byte, v []float32) string {
+	if len >= 4 {
+		return fmt.Sprintf("%s=[% 4.1f % 4.1f % 4.1f % 4.1f]", name, v[0], v[1], v[2], v[3])
+	}
+	return "Non-4 rotors"
 }

@@ -19,7 +19,7 @@ import (
 type Vec3 [3]float64
 
 func (t Vec3) String() string {
-	return fmt.Sprintf("[% 5.2f % 5.2f % 5.2f]", t[0], t[1], t[2])
+	return fmt.Sprintf("[% 6.2f % 6.2f % 6.2f]", t[0], t[1], t[2])
 }
 
 type Mat3 [3][3]float64
@@ -809,7 +809,7 @@ func detectYawDirection(c *Controller) error {
 
 	var yawValue float64
 	for {
-		yawValue += 0.01
+		yawValue += 0.1
 		pos.LH = ToInt16Signed(yawValue)
 		if err := c.act.SendJoystick(pos); err != nil {
 			return fmt.Errorf("joystick send: %w", err)
