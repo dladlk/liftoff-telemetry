@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+
+	"github.com/dladlk/liftoff-telemetry/vector"
 )
 
 // UDP Server to get Litfoff Telemtry
@@ -83,7 +85,7 @@ func (d Datagram) String() string {
 	return fmt.Sprintf("Ts=%6.3f\t%s\t%s\t%s\t%s\t%s\t%s", d.Timestamp,
 		print3Big("Pos", d.Position),
 		printAttitude("Att", d.Attitude),
-		print3Small("Vel", d.Velocity),
+		printVelocity("Vel", d.Velocity, d.Attitude),
 		print3Big("Gyr", d.Gyro),
 		print4Small("Inp", d.Input),
 		printRPM("RPM", d.Motors, d.MotorRPM),
@@ -92,6 +94,10 @@ func (d Datagram) String() string {
 
 func print3Big(name string, v [3]float32) string {
 	return fmt.Sprintf("%s=[% 6.1f % 6.1f % 6.1f]", name, v[0], v[1], v[2])
+}
+
+func printVelocity(name string, v [3]float32, attitude [4]float32) string {
+	return fmt.Sprintf("%s %s", print3Small(name, v), print3Small("VelLocal", vector.VelocityWorldSpaceToLocalSpace(v, attitude)))
 }
 
 func print3Small(name string, v [3]float32) string {
