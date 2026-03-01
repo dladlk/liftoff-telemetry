@@ -532,8 +532,8 @@ func (c *Controller) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Printf("Reset joystick to down position but not full down on finish")
-			c.act.SendJoystick(JoystickPosition{math.MinInt16 + 15000, 0, 0, 0})
+			fmt.Printf("Reset joystick to down position but not full down on finish\n")
+			c.act.SendJoystick(JoystickPosition{math.MinInt16 + 5000, 0, 0, 0})
 			time.Sleep(1 * time.Second)
 
 			return ctx.Err()
@@ -763,7 +763,7 @@ func main() {
 	// Stop after some time
 	go func() {
 		time.Sleep(time.Duration(maxTimeSeconds) * time.Second)
-		fmt.Printf("Stop controller after %d seconds", maxTimeSeconds)
+		fmt.Printf("Stop controller after %d seconds\n", maxTimeSeconds)
 		cancel()
 	}()
 	if err := ctrl.Run(ctx); err != nil && err != context.Canceled {
