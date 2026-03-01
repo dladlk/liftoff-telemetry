@@ -45,27 +45,6 @@ func VectorZero(v []float32) bool {
 	return absSum < 0.000001
 }
 
-// Attention from Datagram - X, Y, Z, W
-// Returns Eurle's Angles in Radians as x_phi_roll, y_theta_pitch, z_psi_yaw
-// Done by https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Quaternion_to_angles_(in_ZYX_sequence)_conversion
-func AttitudeQuaternionToEulerRadians(Attitude [4]float32) [3]float32 {
-	x := Attitude[0]
-	y := Attitude[1]
-	z := Attitude[2]
-	w := Attitude[3]
-
-	x_phi_roll := atan2(2*(w*x+y*z), 1-2*(x*x+y*y))
-	y_theta_pitch := asin(2 * (w*y - x*z))
-	z_psi_yaw := atan2(2*(w*z+x*y), 1-2*(y*y+z*z))
-
-	return [3]float32{x_phi_roll, y_theta_pitch, z_psi_yaw}
-}
-
-func AttitudeQuaternionToEulerDegrees(Attention [4]float32) [3]float32 {
-	radians := AttitudeQuaternionToEulerRadians(Attention)
-	return [3]float32{radianToDegree(radians[0]), radianToDegree(radians[1]), radianToDegree(radians[2])}
-}
-
 // Represents quaternion as 4 real numbers a, b, c, d which stay for a + bi + cj + dk
 // See definition in https://en.wikipedia.org/wiki/Quaternion
 type Quaternion struct {
@@ -135,15 +114,4 @@ func VelocityWorldSpaceToLocalSpace(velocity [3]float32, attitude [4]float32) [3
 	}
 
 	return [3]float32{qr.b, qr.c, qr.d}
-}
-
-func radianToDegree(x float32) float32 {
-	return x * 180.0 / math.Pi
-}
-
-func atan2(x float32, y float32) float32 {
-	return float32(math.Atan2(float64(x), float64(y)))
-}
-func asin(x float32) float32 {
-	return float32(math.Asin(float64(x)))
 }

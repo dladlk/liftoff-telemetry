@@ -82,7 +82,7 @@ func (cur *Datagram) ParseDatagram(reader *bytes.Reader, fields *[]StreamDataTyp
 func (d Datagram) String() string {
 	return fmt.Sprintf("Ts=%6.3f\t%s\t%s\t%s\t%s\t%s\t%s", d.Timestamp,
 		print3Big("Pos", d.Position),
-		print4Small("Att", d.Attitude),
+		printAttitude("Att", d.Attitude),
 		print3Small("Vel", d.Velocity),
 		print3Big("Gyr", d.Gyro),
 		print4Small("Inp", d.Input),
@@ -98,6 +98,11 @@ func print3Small(name string, v [3]float32) string {
 	return fmt.Sprintf("%s=[% 4.3f % 4.3f % 4.3f]", name, v[0], v[1], v[2])
 }
 
+func printAttitude(name string, v [4]float32) string {
+	eulerDeg := AttitudeQuaternionToEulerDegrees(v)
+	return fmt.Sprintf("%s %s", print4Small(name, v), print3Big("Deg", eulerDeg))
+}
+
 func print4Small(name string, v [4]float32) string {
 	return fmt.Sprintf("%s=[% 4.3f % 4.3f % 4.3f % 4.3f]", name, v[0], v[1], v[2], v[3])
 }
@@ -107,4 +112,36 @@ func printRPM(name string, len byte, v []float32) string {
 		return fmt.Sprintf("%s=[% 4.1f % 4.1f % 4.1f % 4.1f]", name, v[0], v[1], v[2], v[3])
 	}
 	return "Non-4 rotors"
+}
+
+func AttitudeQuaternionToEulerDegrees(Attention [4]float32) [3]float32 {
+	radians := AttitudeQuaternionToEulerRadians(Attention)
+	return [3]float32{radianToDegree(radians[0]), radianToDegree(radians[1]), radianToDegree(radians[2])}
+}
+
+// Attitude from Datagram - X, Y, Z, W
+// Returns Eurle's Angles in Radians as x_phi_roll, y_theta_pitch, z_psi_yaw
+// Done by https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Quaternion_to_angles_(in_ZYX_sequence)_conversion
+func AttitudeQuaternionToEulerRadians(Attitude [4]float32) [3]float32 {
+	x := Attitude[0]
+	y := Attitude[1]
+	z := Attitude[2]
+	w := Attitude[3]
+
+	x_phi_roll := atan2(2*(w*x+y*z), 1-2*(x*x+y*y))
+	y_theta_pitch := asin(2 * (w*y - x*z))
+	z_psi_yaw := atan2(2*(w*z+x*y), 1-2*(y*y+z*z))
+
+	return [3]float32{x_phi_roll, y_theta_pitch, z_psi_yaw}
+}
+
+func radianToDegree(x float32) float32 {
+	return x * 180.0 / math.Pi
+}
+
+func atan2(x float32, y float32) float32 {
+	return float32(math.Atan2(float64(x), float64(y)))
+}
+func asin(x float32) float32 {
+	return float32(math.Asin(float64(x)))
 }

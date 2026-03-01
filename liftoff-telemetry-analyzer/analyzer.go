@@ -51,7 +51,7 @@ func main() {
 			if printCount <= printLimit {
 				printCount++
 				fmt.Println(vector.VectorPrintTabbed("Attitude", d.Attitude),
-					vector.VectorPrint3Short("Degrees", vector.AttitudeQuaternionToEulerDegrees(d.Attitude)),
+					vector.VectorPrint3Short("Degrees", lot_config.AttitudeQuaternionToEulerDegrees(d.Attitude)),
 					vector.VectorPrint3Long("Velocity World", d.Velocity),
 					vector.VectorPrint3Long("Velocity Local", vector.VelocityWorldSpaceToLocalSpace(d.Velocity, d.Attitude)),
 					vector.VectorPrint3Short("Gyro", d.Gyro),

@@ -816,8 +816,8 @@ func detectYawDirection(c *Controller) error {
 		}
 		time.Sleep(1 * time.Second)
 		t, _, _ := c.tprov.ReadTelemetry()
-		fmt.Printf("yaw=%4.2f, LH=%6d  telemetry: %s original %+v\n", yawValue, pos.LH, t, t.Original)
-		if yawValue > 0.8 {
+		fmt.Printf("yaw=%4.2f, LH=%6d  telemetry: %s original %s\n", yawValue, pos.LH, t, t.Original)
+		if yawValue > 1.0 {
 			break
 		}
 	}
