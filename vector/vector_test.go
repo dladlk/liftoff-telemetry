@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	vector "github.com/dladlk/liftoff-auto-drone/vector"
+	vector "github.com/dladlk/liftoff-telemetry/vector"
 )
 
 func TestVelocityWorldSpaceToLocalSpace(t *testing.T) {

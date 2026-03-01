@@ -8,8 +8,8 @@ import (
 	"sort"
 
 	track "github.com/dladlk/liftoff-auto-drone/track"
-	vector "github.com/dladlk/liftoff-auto-drone/vector"
 	lot_config "github.com/dladlk/liftoff-telemetry/data"
+	vector "github.com/dladlk/liftoff-telemetry/vector"
 )
 
 func main() {
