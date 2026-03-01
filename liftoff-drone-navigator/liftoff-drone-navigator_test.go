@@ -87,3 +87,23 @@ func TestToInt16Uncentered01(t *testing.T) {
 		})
 	}
 }
+
+func TestToInt16Signed(t *testing.T) {
+	tests := []struct {
+		x    float64
+		want int16
+	}{
+		{-1, -32767},
+		{0, 0},
+		{1, 32767},
+		{0.5, 16384},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%f", tt.x), func(t *testing.T) {
+			got := main.ToInt16Signed(tt.x)
+			if got != tt.want {
+				t.Errorf("ToInt16Signed() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
