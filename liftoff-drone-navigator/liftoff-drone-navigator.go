@@ -810,7 +810,7 @@ func detectYawDirection(c *Controller) error {
 	var yawValue float64
 	for {
 		yawValue += 0.01
-		pos.LH += ToInt16Signed(yawValue)
+		pos.LH = ToInt16Signed(yawValue)
 		if err := c.act.SendJoystick(pos); err != nil {
 			return fmt.Errorf("joystick send: %w", err)
 		}
