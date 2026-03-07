@@ -219,6 +219,12 @@ func (l *LiftoffTelemetryProvider) ReadTelemetry() (Telemetry, bool, error) {
 
 func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 	R := quaternionToRotationMatrix(float64(datagram.Attitude[3]), float64(datagram.Attitude[0]), float64(datagram.Attitude[1]), float64(datagram.Attitude[2]))
+
+	// Telemetry returns quaternion in ANOTHER system then calculation uses, we should convert it
+	v1, v2, v3 := rToEuler(R)
+	//fmt.Printf("%f %f %f\n", v1, v2, v3)
+	R = EulerToR(v3, v1, v2)
+
 	tel := Telemetry{
 		Index:    index,
 		Time:     time.Now(),
@@ -702,9 +708,9 @@ func main() {
 	desiredAltitude := 5
 	maxTimeSeconds := 1
 	doStartThrottleHoverDetection := false
-	doStartYawDirectionDetection := true
+	doStartYawDirectionDetection := false
 	doStartRollDirectionDetection := true
-	doStartPitchDirectionDetection := true
+	doStartPitchDirectionDetection := false
 	doStartOnly := true
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
@@ -817,16 +823,22 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
-		fmt.Printf("yaw=% 5.2f, LH=% 6d  telemetry: %s original %s\n", yawValue, pos.LH, t, t.Original)
+		fmt.Printf("yaw=% 5.2f, LH=% 6d  telemetry: %s \n", yawValue, pos.LH, t)
 
 		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
+		degree := eulerAngles[1]
+
+		rollRadian, pitchRadian, yawRadian := rToEuler(t.Rotation)
+		fmt.Printf("PRY: % 6.3f % 6.3f % 6.3f\n", lot_config.RadianToDegree(float32(pitchRadian)), lot_config.RadianToDegree(float32(rollRadian)), lot_config.RadianToDegree(float32(yawRadian)))
+
+		degree = float32(lot_config.RadianToDegree(float32(yawRadian)))
 
 		if clockWise {
-			if eulerAngles[1] > float32(degLimit) {
+			if degree > float32(degLimit) {
 				clockWise = false
 			}
 		} else {
-			if eulerAngles[1] < -float32(degLimit) {
+			if degree < -float32(degLimit) {
 				clockWise = true
 			}
 		}

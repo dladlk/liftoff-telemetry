@@ -122,7 +122,7 @@ func printRPM(name string, len byte, v []float32) string {
 
 func AttitudeQuaternionToEulerDegrees(Attention [4]float32) [3]float32 {
 	radians := AttitudeQuaternionToEulerRadians(Attention)
-	return [3]float32{radianToDegree(radians[0]), radianToDegree(radians[1]), radianToDegree(radians[2])}
+	return [3]float32{RadianToDegree(radians[0]), RadianToDegree(radians[1]), RadianToDegree(radians[2])}
 }
 
 // Attitude from Datagram - X, Y, Z, W
@@ -141,7 +141,7 @@ func AttitudeQuaternionToEulerRadians(Attitude [4]float32) [3]float32 {
 	return [3]float32{x_phi_roll, y_theta_pitch, z_psi_yaw}
 }
 
-func radianToDegree(x float32) float32 {
+func RadianToDegree(x float32) float32 {
 	return x * 180.0 / math.Pi
 }
 
