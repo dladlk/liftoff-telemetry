@@ -738,7 +738,7 @@ func main() {
 		fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
 	}
 	if doStartYawDirectionDetection {
-		fmt.Println("Start to yaw clock-wise (grow to 1 and further) on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields")
+		fmt.Println("Start to yaw clock-wise until 45deg then counter-wise to -45 and again for 30 sec on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields")
 		detectYawDirection(ctrl)
 	}
 
