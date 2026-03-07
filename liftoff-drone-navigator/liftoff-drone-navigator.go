@@ -706,12 +706,12 @@ func main() {
 	desiredFront := 0
 	desiredRight := 0
 	desiredAltitude := 5
-	maxTimeSeconds := 1
+	maxTimeSeconds := 10
 	doStartThrottleHoverDetection := false
-	doStartYawDirectionDetection := true
-	doStartRollDirectionDetection := true
-	doStartPitchDirectionDetection := true
-	doStartOnly := true
+	doStartYawDirectionDetection := false
+	doStartRollDirectionDetection := false
+	doStartPitchDirectionDetection := false
+	doStartOnly := false
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
 	positionDesired := add(startPosition, desiredIncrement)
