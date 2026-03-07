@@ -702,8 +702,8 @@ func main() {
 	desiredAltitude := 5
 	maxTimeSeconds := 1
 	doStartThrottleHoverDetection := false
-	doStartYawDirectionDetection := false
-	doStartRollDirectionDetection := true
+	doStartYawDirectionDetection := true
+	doStartRollDirectionDetection := false
 	doStartOnly := true
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
@@ -790,7 +790,8 @@ func detectHoverThrottle(c *Controller) error {
 }
 
 func detectYawDirection(c *Controller, limitSeconds int) error {
-	fmt.Printf("Start to yaw clock-wise until 45deg then counter-wise to -45 and again for %d sec on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", limitSeconds)
+	degLimit := 45
+	fmt.Printf("Start to yaw clock-wise until %d degree then counter-wise to -%d and again for %d sec on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", degLimit, degLimit, limitSeconds)
 
 	startDetection := time.Now()
 	pos := JoystickPosition{}
@@ -807,8 +808,12 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 	fmt.Printf("Initial telemetry value: %s\n", ts)
 
 	clockWise := true
-	var yawValue float64 = 0.1
+	var yawValue float64
 	for {
+		yawValue = 0.1
+		if !clockWise {
+			yawValue = -yawValue
+		}
 		pos.LH = ToInt16Signed(yawValue)
 		if err := c.act.SendJoystick(pos); err != nil {
 			return fmt.Errorf("joystick send: %w", err)
@@ -820,13 +825,11 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
 
 		if clockWise {
-			if eulerAngles[1] > 45.0 {
-				yawValue = -0.1
+			if eulerAngles[1] > float32(degLimit) {
 				clockWise = false
 			}
 		} else {
-			if eulerAngles[1] < -45.0 {
-				yawValue = 0.1
+			if eulerAngles[1] < -float32(degLimit) {
 				clockWise = true
 			}
 		}
@@ -836,7 +839,7 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 		}
 	}
 
-	// Reset to balance position
+	// Reset to balanced position
 	pos = JoystickPosition{}
 	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
 	c.act.SendJoystick(pos)
