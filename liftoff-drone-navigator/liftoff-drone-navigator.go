@@ -708,9 +708,9 @@ func main() {
 	desiredAltitude := 5
 	maxTimeSeconds := 1
 	doStartThrottleHoverDetection := false
-	doStartYawDirectionDetection := false
+	doStartYawDirectionDetection := true
 	doStartRollDirectionDetection := true
-	doStartPitchDirectionDetection := false
+	doStartPitchDirectionDetection := true
 	doStartOnly := true
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
@@ -825,13 +825,9 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 		t, _, _ := c.tprov.ReadTelemetry()
 		fmt.Printf("yaw=% 5.2f, LH=% 6d  telemetry: %s \n", yawValue, pos.LH, t)
 
-		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
-		degree := eulerAngles[1]
+		_, _, yawRadian := rToEuler(t.Rotation)
 
-		rollRadian, pitchRadian, yawRadian := rToEuler(t.Rotation)
-		fmt.Printf("PRY: % 6.3f % 6.3f % 6.3f\n", lot_config.RadianToDegree(float32(pitchRadian)), lot_config.RadianToDegree(float32(rollRadian)), lot_config.RadianToDegree(float32(yawRadian)))
-
-		degree = float32(lot_config.RadianToDegree(float32(yawRadian)))
+		degree := float32(lot_config.RadianToDegree(float32(yawRadian)))
 
 		if clockWise {
 			if degree > float32(degLimit) {
@@ -898,10 +894,8 @@ func detectRollDirection(c *Controller, limitSeconds int) error {
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		// pitch, yaw, roll angles?
-		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
-		// IMPORTANT! Roll value we take from 3d and INVERTED euler angle...
-		degree := -eulerAngles[2]
+		rollRadian, _, _ := rToEuler(t.Rotation)
+		degree := float32(-lot_config.RadianToDegree(float32(rollRadian)))
 
 		fmt.Printf("roll=% 5.2f, RH=% 6d , deg=% 5.1f telemetry: %s \n", rollValue, pos.RH, degree, t)
 
@@ -930,11 +924,14 @@ func stabilizeRollPitchAngle(pos JoystickPosition, c *Controller) {
 	iterations := 0
 	for {
 		t, _, _ := c.tprov.ReadTelemetry()
-		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
-		rollDegree := -eulerAngles[2]
-		pitchDegree := eulerAngles[0]
+
+		rollRadian, pitchRadian, _ := rToEuler(t.Rotation)
+
+		rollDegree := float32(-lot_config.RadianToDegree(float32(rollRadian)))
+		pitchDegree := float32(lot_config.RadianToDegree(float32(pitchRadian)))
+
 		if math.Abs(float64(rollDegree)) < 0.01 && math.Abs(float64(pitchDegree)) < 0.01 {
-			fmt.Printf("Roll and pitch degree is almost 0, stop after %d iterations: %f %f \n", iterations, rollDegree, pitchDegree)
+			fmt.Printf("Roll and pitch degree are almost 0, stop after %d iterations: %f %f \n", iterations, rollDegree, pitchDegree)
 			break
 		}
 		pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
@@ -976,9 +973,8 @@ func detectPitchDirection(c *Controller, limitSeconds int) error {
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		// pitch, yaw, roll angles?
-		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
-		degree := eulerAngles[0]
+		_, pitchRadian, _ := rToEuler(t.Rotation)
+		degree := float32(lot_config.RadianToDegree(float32(pitchRadian)))
 
 		fmt.Printf("roll=% 5.2f, RV=% 6d , deg=% 5.1f telemetry: %s \n", pitchValue, pos.RV, degree, t)
 
