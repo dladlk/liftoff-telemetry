@@ -192,12 +192,11 @@ type SetpointProvider interface {
    ============================ */
 
 // Joystick actuator in ACRO:
-//   - leftVert  : throttle (collective). Un-centered(DLK: REALLY?) (0..+MaxFloat32) by default.
+//   - leftVert  : throttle (collective) ([-MaxFloat32, +MaxFloat32])
 //   - leftHoriz : yaw rate ([-MaxFloat32, +MaxFloat32])
 //   - rightVert : pitch rate ([-MaxFloat32, +MaxFloat32])
 //   - rightHoriz: roll  rate ([-MaxFloat32, +MaxFloat32])
 type JoystickActuator interface {
-	// ACRO: LV=throttle [0..+32767] (uncentered) or [-32767..+32767] (centered)
 	SendJoystick(joystickPosition JoystickPosition) error
 }
 
@@ -457,12 +456,12 @@ func (j JoystickPosition) String() string {
 	return fmt.Sprintf("[%d %d %d %d]", j.LV, j.LH, j.RV, j.RH)
 }
 
-func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float64) JoystickPosition {
+func (c *Controller) toAcroJoystick(R Mat3, sp Setpoint, Rd Mat3, T float64) JoystickPosition {
 	// current yaw
-	_, _, yawCur := rToEuler(tel.Rotation)
+	_, _, yawCur := rToEuler(R)
 
 	// desired body rates from attitude error
-	omegaCmd := c.desiredBodyRates(tel.Rotation, Rd, yawCur, sp.PsiD)
+	omegaCmd := c.desiredBodyRates(R, Rd, yawCur, sp.PsiD)
 
 	// normalize to [-1..1]
 	rhNorm := omegaCmd[0] / c.cfg.Rates.MaxRollRate
@@ -570,7 +569,7 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 	}
 
 	// 3) Map to ACRO sticks (rates + throttle)
-	j := c.toAcroJoystick(tel, sp, Rd, thrust)
+	j := c.toAcroJoystick(tel.Rotation, sp, Rd, thrust)
 
 	if showDebugCalculation {
 		fmt.Printf("3) Output joystick: %s\n", j)
