@@ -739,10 +739,10 @@ func main() {
 		fmt.Printf("Start navigation with throttle hover %f\n", ctrl.cfg.Throttle.HoverStick)
 	}
 	if doStartYawDirectionDetection {
-		detectYawDirection(ctrl)
+		detectYawDirection(ctrl, 10)
 	}
 	if doStartRollDirectionDetection {
-		detectRollDirection(ctrl)
+		detectRollDirection(ctrl, 10)
 	}
 
 	if doStartOnly {
@@ -789,8 +789,8 @@ func detectHoverThrottle(c *Controller) error {
 	return nil
 }
 
-func detectYawDirection(c *Controller) error {
-	fmt.Println("Start to yaw clock-wise until 45deg then counter-wise to -45 and again for 30 sec on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields")
+func detectYawDirection(c *Controller, limitSeconds int) error {
+	fmt.Printf("Start to yaw clock-wise until 45deg then counter-wise to -45 and again for %d sec on some minimal altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", limitSeconds)
 
 	startDetection := time.Now()
 	pos := JoystickPosition{}
@@ -831,7 +831,7 @@ func detectYawDirection(c *Controller) error {
 			}
 		}
 
-		if time.Since(startDetection).Seconds() > 30 {
+		if time.Since(startDetection).Seconds() > float64(limitSeconds) {
 			break
 		}
 	}
@@ -845,9 +845,9 @@ func detectYawDirection(c *Controller) error {
 	return nil
 }
 
-func detectRollDirection(c *Controller) error {
+func detectRollDirection(c *Controller, limitSeconds int) error {
 	degLimit := 15
-	fmt.Printf("Start to roll right until %d degrees then left to -%d and again for 30 sec on some altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", degLimit, degLimit)
+	fmt.Printf("Start to roll right until %d degrees then left to -%d and again for %d sec on some altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", degLimit, degLimit, limitSeconds)
 
 	startDetection := time.Now()
 	pos := JoystickPosition{}
@@ -896,16 +896,33 @@ func detectRollDirection(c *Controller) error {
 			}
 		}
 
-		if time.Since(startDetection).Seconds() > 10 {
+		if time.Since(startDetection).Seconds() > float64(limitSeconds) {
 			break
 		}
 	}
 
-	// Reset to balanced position
-	pos = JoystickPosition{}
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
+	stabilizeRollAngle(pos, c)
 
 	return nil
+}
+
+func stabilizeRollAngle(pos JoystickPosition, c *Controller) {
+	pos = JoystickPosition{}
+	iterations := 0
+	for {
+		t, _, _ := c.tprov.ReadTelemetry()
+		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
+		rollDegree := -eulerAngles[2]
+		if math.Abs(float64(rollDegree)) < 0.01 {
+			fmt.Printf("Roll degree is almost 0, stop after %d iterations: %f \n", iterations, rollDegree)
+			break
+		}
+		pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
+		rollValue := -rollDegree / 180
+		pos.RH = ToInt16Signed(float64(rollValue))
+		fmt.Printf("Stabilizing, now % 6.3f RH=% 6d roll=%f\n", rollDegree, pos.RH, rollValue)
+		c.act.SendJoystick(pos)
+		time.Sleep(10 * time.Millisecond)
+		iterations++
+	}
 }
