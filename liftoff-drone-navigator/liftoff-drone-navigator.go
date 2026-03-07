@@ -702,8 +702,8 @@ func main() {
 	desiredAltitude := 5
 	maxTimeSeconds := 1
 	doStartThrottleHoverDetection := false
-	doStartYawDirectionDetection := false
-	doStartRollDirectionDetection := false
+	doStartYawDirectionDetection := true
+	doStartRollDirectionDetection := true
 	doStartPitchDirectionDetection := true
 	doStartOnly := true
 
@@ -799,14 +799,7 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 
 	startDetection := time.Now()
 	pos := JoystickPosition{}
-	// Slowly go up
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.1)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
-	// Hover
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
+	moveToStartDetectionAltitude(&pos, c)
 
 	ts, _, _ := c.tprov.ReadTelemetry()
 	fmt.Printf("Initial telemetry value: %s\n", ts)
@@ -852,20 +845,27 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 	return nil
 }
 
+func moveToStartDetectionAltitude(pos *JoystickPosition, c *Controller) {
+	ts, _, _ := c.tprov.ReadTelemetry()
+	if ts.Position[2] < 5 {
+		// To low, slowly go up
+		pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.1)
+		c.act.SendJoystick(*pos)
+		time.Sleep(1 * time.Second)
+	}
+	// Hover
+	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
+	c.act.SendJoystick(*pos)
+	time.Sleep(1 * time.Second)
+}
+
 func detectRollDirection(c *Controller, limitSeconds int) error {
 	degLimit := 15
 	fmt.Printf("Start to roll right until %d degrees then left to -%d and again for %d sec on some altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", degLimit, degLimit, limitSeconds)
 
 	startDetection := time.Now()
 	pos := JoystickPosition{}
-	// Slowly go up
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.2)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
-	// Hover
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
+	moveToStartDetectionAltitude(&pos, c)
 
 	ts, _, _ := c.tprov.ReadTelemetry()
 	fmt.Printf("Initial telemetry value: %s\n", ts)
@@ -943,14 +943,7 @@ func detectPitchDirection(c *Controller, limitSeconds int) error {
 
 	startDetection := time.Now()
 	pos := JoystickPosition{}
-	// Slowly go up
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.2)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
-	// Hover
-	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
-	c.act.SendJoystick(pos)
-	time.Sleep(1 * time.Second)
+	moveToStartDetectionAltitude(&pos, c)
 
 	ts, _, _ := c.tprov.ReadTelemetry()
 	fmt.Printf("Initial telemetry value: %s\n", ts)
