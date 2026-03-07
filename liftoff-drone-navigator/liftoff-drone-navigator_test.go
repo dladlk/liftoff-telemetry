@@ -23,20 +23,20 @@ func TestCalculate(t *testing.T) {
 		sp   main.Setpoint
 		want main.JoystickPosition
 	}{
-		{"Expect zero joystick if we have zero and want zero",
-			zeroDatagram, main.Setpoint{}, main.JoystickPosition{}},
+		{"Expect non-zero thrust joystick if we have zero and want zero - because of gravity G",
+			zeroDatagram, main.Setpoint{}, main.JoystickPosition{-12767, 0, 0, 0}},
 
 		{"Expect zero joystick if we have 1 on pos and want 1 on pos",
-			main.DatagramToTelemetry(&lot_config.Datagram{Position: [3]float32{1, 1, 1}}, 1), main.Setpoint{PositionDesired: main.Vec3{1, 1, 1}}, main.JoystickPosition{}},
+			main.DatagramToTelemetry(&lot_config.Datagram{Position: [3]float32{1, 1, 1}}, 1), main.Setpoint{PositionDesired: main.Vec3{1, 1, 1}}, main.JoystickPosition{-12767, 0, 0, 0}},
 
 		{"Expect non-zero joystick if we want to move 1m in direction x and stop",
-			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{1, 0, 0}}, main.JoystickPosition{265, 0, 1638, 0}},
+			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{1, 0, 0}}, main.JoystickPosition{-12521, 0, 1638, 0}},
 
 		{"Expect non-zero joystick if we want to move 10m in direction x and stop",
-			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{10, 0, 0}}, main.JoystickPosition{3277, 0, 1638, 0}},
+			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{10, 0, 0}}, main.JoystickPosition{-9491, 0, 1638, 0}},
 
 		{"Expect non-zero joystick if we want to move 100m in direction x and stop",
-			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{100, 0, 0}}, main.JoystickPosition{3277, 0, 1638, 0}},
+			zeroDatagram, main.Setpoint{PositionDesired: main.Vec3{100, 0, 0}}, main.JoystickPosition{-9491, 0, 1638, 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"atomicgo.dev/keyboard/keys"
 
 	track "github.com/dladlk/liftoff-auto-drone/track"
-	vector "github.com/dladlk/liftoff-auto-drone/vector"
+	"github.com/dladlk/liftoff-telemetry/vector"
 )
 
 // Manual calibration:
