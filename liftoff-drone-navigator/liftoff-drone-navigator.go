@@ -702,8 +702,9 @@ func main() {
 	desiredAltitude := 5
 	maxTimeSeconds := 1
 	doStartThrottleHoverDetection := false
-	doStartYawDirectionDetection := true
+	doStartYawDirectionDetection := false
 	doStartRollDirectionDetection := false
+	doStartPitchDirectionDetection := true
 	doStartOnly := true
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
@@ -743,6 +744,9 @@ func main() {
 	}
 	if doStartRollDirectionDetection {
 		detectRollDirection(ctrl, 10)
+	}
+	if doStartPitchDirectionDetection {
+		detectPitchDirection(ctrl, 17)
 	}
 
 	if doStartOnly {
@@ -928,4 +932,64 @@ func stabilizeRollAngle(pos JoystickPosition, c *Controller) {
 		time.Sleep(10 * time.Millisecond)
 		iterations++
 	}
+}
+
+func detectPitchDirection(c *Controller, limitSeconds int) error {
+	degLimit := 15
+	fmt.Printf("Start to pitch forward until %d degrees then back to -%d and again for %d sec on some altitude to see how rotation matrix is changed to confirm correct mapping of fields\n", degLimit, degLimit, limitSeconds)
+
+	startDetection := time.Now()
+	pos := JoystickPosition{}
+	// Slowly go up
+	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.2)
+	c.act.SendJoystick(pos)
+	time.Sleep(1 * time.Second)
+	// Hover
+	pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
+	c.act.SendJoystick(pos)
+	time.Sleep(1 * time.Second)
+
+	ts, _, _ := c.tprov.ReadTelemetry()
+	fmt.Printf("Initial telemetry value: %s\n", ts)
+
+	forward := true
+	pitchSpan := 0.03
+	var pitchValue float64
+	for {
+		if forward {
+			pitchValue = pitchSpan
+		} else {
+			pitchValue = -pitchSpan
+		}
+		pos.RV = ToInt16Signed(pitchValue)
+		if err := c.act.SendJoystick(pos); err != nil {
+			return fmt.Errorf("joystick send: %w", err)
+		}
+		time.Sleep(500 * time.Millisecond)
+		t, _, _ := c.tprov.ReadTelemetry()
+
+		// pitch, yaw, roll angles?
+		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
+		degree := eulerAngles[0]
+
+		fmt.Printf("roll=% 5.2f, RV=% 6d , deg=% 5.1f telemetry: %s \n", pitchValue, pos.RV, degree, t)
+
+		if forward {
+			if degree > float32(degLimit) {
+				forward = false
+			}
+		} else {
+			if degree < float32(-degLimit) {
+				forward = true
+			}
+		}
+
+		if time.Since(startDetection).Seconds() > float64(limitSeconds) {
+			break
+		}
+	}
+
+	//stabilizeRollAngle(pos, c)
+
+	return nil
 }
