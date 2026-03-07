@@ -260,14 +260,10 @@ type AcroRateLimits struct {
 
 // ACRO throttle shaping
 type ThrottleMap struct {
-	// If Centered=false (typical ACRO), stick ∈ [0,1];  hover is at HoverStick in [0..1]
+	// stick ∈ [0,1];  hover is at HoverStick in [0..1]
 	// throttleStick = clamp( HoverStick + Slope*(T/(mg)-1), 0, 1 )
-	// If Centered=true (spring), stick ∈ [-1,1]; hover is 0
-	// throttleStick = clamp( (T/(mg)-1)/CenteredSpan, -1, 1 )
 	HoverStick       float64 // where hover sits on [0..1] scale (e.g., 0.5)
 	Slope            float64 // linear sensitivity around hover (unitless)
-	Centered         bool    // if true, map to [-1,1] centered at hover
-	CenteredSpan     float64 // how much relative thrust delta maps to full deflection (e.g., 1.0 → ±100% per ±100% thrust delta)
 	Deadzone         float64 // small deadzone around hover or zero
 	RateLimitPerTick float64 // max change per tick in stick units
 }
@@ -503,22 +499,12 @@ func (c *Controller) toAcroJoystick(tel Telemetry, sp Setpoint, Rd Mat3, T float
 	lh := ToInt16Signed(lhNorm)
 	var lv int16
 
-	if c.cfg.Throttle.Centered {
-		// Centered throttle in [-1,1], 0 at hover
-		span := math.Max(c.cfg.Throttle.CenteredSpan, 1e-6)
-		raw := clamp((rel-1.0)/span, -1, 1)
-		raw = applyDeadzone(raw, dz)
-		raw = rateLimit(raw, c.state.lastLV, rl)
-		c.state.lastLV = raw
-		lv = ToInt16Signed(raw)
-	} else {
-		// Uncentered throttle in [0,1], HoverStick at rel=1
-		raw := c.cfg.Throttle.HoverStick + c.cfg.Throttle.Slope*(rel-1.0)
-		raw = clamp(raw, 0, 1)
-		raw = rateLimit(raw, c.state.lastLV, rl)
-		c.state.lastLV = raw
-		lv = ToInt16Uncentered01(raw)
-	}
+	// Uncentered throttle in [0,1], HoverStick at rel=1
+	raw := c.cfg.Throttle.HoverStick + c.cfg.Throttle.Slope*(rel-1.0)
+	raw = clamp(raw, 0, 1)
+	raw = rateLimit(raw, c.state.lastLV, rl)
+	c.state.lastLV = raw
+	lv = ToInt16Uncentered01(raw)
 	return JoystickPosition{LV: lv, LH: lh, RV: rv, RH: rh}
 }
 
@@ -656,8 +642,6 @@ func NewControllerConfig() ControllerConfig {
 		Throttle: ThrottleMap{
 			HoverStick:       0.305180, // hover mid-stick (uncentered mode). Move started with 0.305180
 			Slope:            0.5,      // 50% stick per 100% thrust delta around hover
-			Centered:         false,    // We are not centered throttle because 0 is not 0 - it is 50% of max spin of motors... And we should convert [0,1] to [-32000,+32000]
-			CenteredSpan:     1.0,      // used only if Centered=true
 			Deadzone:         0.03,
 			RateLimitPerTick: 0.05,
 		},
