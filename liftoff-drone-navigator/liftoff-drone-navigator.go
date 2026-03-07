@@ -703,7 +703,7 @@ func main() {
 
 	// When we run in debug, compilation takes enough time to switch to liftoff so no need to wait. When run built version - set sleepSecondsBeforeStart to 3 seconds
 	sleepSecondsBeforeStart := 0
-	desiredFront := 0
+	desiredFront := 1
 	desiredRight := 0
 	desiredAltitude := 5
 	maxTimeSeconds := 10
