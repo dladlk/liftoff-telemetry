@@ -640,9 +640,9 @@ func NewControllerConfig() ControllerConfig {
 		YawP:       0.8,                 // extra yaw P (optional)
 
 		Rates: AcroRateLimits{
-			MaxRollRate:  4.0, // rad/s (~230 deg/s)
-			MaxPitchRate: 4.0,
-			MaxYawRate:   3.0,
+			MaxRollRate:  float64(lot_config.DegreeToRadian(30)), // rad/s
+			MaxPitchRate: float64(lot_config.DegreeToRadian(30)),
+			MaxYawRate:   float64(lot_config.DegreeToRadian(30)),
 		},
 		Throttle: ThrottleMap{
 			HoverStick:       0.305180, // hover mid-stick (uncentered mode). Move started with 0.305180

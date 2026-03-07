@@ -145,6 +145,10 @@ func RadianToDegree(x float32) float32 {
 	return x * 180.0 / math.Pi
 }
 
+func DegreeToRadian(x float32) float32 {
+	return x / 180.0 * math.Pi
+}
+
 func atan2(x float32, y float32) float32 {
 	return float32(math.Atan2(float64(x), float64(y)))
 }
