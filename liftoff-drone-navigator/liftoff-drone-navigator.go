@@ -908,26 +908,29 @@ func detectRollDirection(c *Controller, limitSeconds int) error {
 		}
 	}
 
-	stabilizeRollAngle(pos, c)
+	stabilizeRollPitchAngle(pos, c)
 
 	return nil
 }
 
-func stabilizeRollAngle(pos JoystickPosition, c *Controller) {
+func stabilizeRollPitchAngle(pos JoystickPosition, c *Controller) {
 	pos = JoystickPosition{}
 	iterations := 0
 	for {
 		t, _, _ := c.tprov.ReadTelemetry()
 		eulerAngles := lot_config.AttitudeQuaternionToEulerDegrees(t.Original.Attitude)
 		rollDegree := -eulerAngles[2]
-		if math.Abs(float64(rollDegree)) < 0.01 {
-			fmt.Printf("Roll degree is almost 0, stop after %d iterations: %f \n", iterations, rollDegree)
+		pitchDegree := eulerAngles[0]
+		if math.Abs(float64(rollDegree)) < 0.01 && math.Abs(float64(pitchDegree)) < 0.01 {
+			fmt.Printf("Roll and pitch degree is almost 0, stop after %d iterations: %f %f \n", iterations, rollDegree, pitchDegree)
 			break
 		}
 		pos.LV = ToInt16Uncentered01(c.cfg.Throttle.HoverStick + 0.04)
 		rollValue := -rollDegree / 180
+		pitchValue := -pitchDegree / 180
 		pos.RH = ToInt16Signed(float64(rollValue))
-		fmt.Printf("Stabilizing, now % 6.3f RH=% 6d roll=%f\n", rollDegree, pos.RH, rollValue)
+		pos.RV = ToInt16Signed(float64(pitchValue))
+		fmt.Printf("Stabilizing, now roll/pitch % 6.3f % 6.3f RH=% 6d RV=% 6d roll=%f, pitch=%f\n", rollDegree, pitchDegree, pos.RH, pos.RV, rollValue, pitchValue)
 		c.act.SendJoystick(pos)
 		time.Sleep(10 * time.Millisecond)
 		iterations++
@@ -989,7 +992,7 @@ func detectPitchDirection(c *Controller, limitSeconds int) error {
 		}
 	}
 
-	//stabilizeRollAngle(pos, c)
+	stabilizeRollPitchAngle(pos, c)
 
 	return nil
 }
