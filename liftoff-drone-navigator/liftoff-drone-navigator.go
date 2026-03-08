@@ -600,19 +600,20 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 //
 
 type MockSetpoint struct {
-	PositionDesired Vec3
-	PsiD            float64
-	Start           time.Time
-	moved           bool
+	PositionDesired            Vec3
+	PsiD                       float64
+	Start                      time.Time
+	changedSetpoint            bool
+	ChangeSetpointAfterSeconds int
 }
 
 func (m *MockSetpoint) GetDesiredSetpoint(now time.Time, tel Telemetry) (Setpoint, error) {
-	if !m.moved {
-		sinceStart := now.Sub(m.Start).Seconds()
-		if sinceStart >= 5 {
+	if !m.changedSetpoint {
+		sinceStart := int(now.Sub(m.Start).Seconds())
+		if sinceStart >= m.ChangeSetpointAfterSeconds {
 			m.PositionDesired = Vec3{tel.Position[0], tel.Position[1], tel.Position[2] + 5}
 			fmt.Printf("Change setpoint to %s\n", m.PositionDesired)
-			m.moved = true
+			m.changedSetpoint = true
 		}
 	}
 	return Setpoint{
@@ -717,7 +718,7 @@ func main() {
 	desiredFront := 1
 	desiredRight := 0
 	desiredAltitude := 5
-	maxTimeSeconds := 10
+	maxTimeSeconds := 5
 	doStartThrottleHoverDetection := false
 	doStartYawDirectionDetection := false
 	doStartRollDirectionDetection := false
@@ -731,8 +732,9 @@ func main() {
 	fmt.Printf("Goal pos %v\n", positionDesired)
 
 	sp := &MockSetpoint{
-		PositionDesired: positionDesired,
-		PsiD:            0 * math.Pi / 180.0, // face 0 degree yaw
+		PositionDesired:            positionDesired,
+		PsiD:                       0 * math.Pi / 180.0, // face 0 degree yaw
+		ChangeSetpointAfterSeconds: maxTimeSeconds * 2,
 	}
 
 	ctrl := NewController(cfg, tel, sp, joy)
