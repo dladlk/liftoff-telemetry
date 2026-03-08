@@ -116,6 +116,16 @@ func rToEuler(R Mat3) (roll, pitch, yaw float64) {
 	return
 }
 
+// Vec3 with (roll, pitch, yaw float64)
+func rToEulerDegreeVec(R Mat3) Vec3 {
+	r, p, y := rToEuler(R)
+	return Vec3{
+		lot_config.RadianToDegree64(r),
+		lot_config.RadianToDegree64(p),
+		lot_config.RadianToDegree64(y),
+	}
+}
+
 // Old name: quatToR
 // Defines Quaternion-derived rotation matrix R
 // https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix
@@ -571,7 +581,8 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 	Rd, thrust := attitudeAndThrustFromAccelYaw(acceleration, c.cfg.G, sp.PsiD, c.cfg.Mass)
 
 	if showDebugCalculation {
-		fmt.Printf("2) Thrust, attitude and state: %f %s %s\n", thrust, Rd, c.state)
+		desiredAttitude := rToEulerDegreeVec(Rd)
+		fmt.Printf("2) Thrust, desired attitude and state: %f %s %s\n", thrust, desiredAttitude, c.state)
 	}
 
 	// 3) Map to ACRO sticks (rates + throttle)
@@ -825,9 +836,7 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 		t, _, _ := c.tprov.ReadTelemetry()
 		fmt.Printf("yaw=% 5.2f, LH=% 6d  telemetry: %s \n", yawValue, pos.LH, t)
 
-		_, _, yawRadian := rToEuler(t.Rotation)
-
-		degree := float32(lot_config.RadianToDegree(float32(yawRadian)))
+		degree := float32(rToEulerDegreeVec(t.Rotation)[2])
 
 		if clockWise {
 			if degree > float32(degLimit) {
@@ -894,8 +903,7 @@ func detectRollDirection(c *Controller, limitSeconds int) error {
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		rollRadian, _, _ := rToEuler(t.Rotation)
-		degree := float32(-lot_config.RadianToDegree(float32(rollRadian)))
+		degree := float32(-rToEulerDegreeVec(t.Rotation)[0])
 
 		fmt.Printf("roll=% 5.2f, RH=% 6d , deg=% 5.1f telemetry: %s \n", rollValue, pos.RH, degree, t)
 
@@ -925,10 +933,10 @@ func stabilizeRollPitchAngle(pos JoystickPosition, c *Controller) {
 	for {
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		rollRadian, pitchRadian, _ := rToEuler(t.Rotation)
+		vec := rToEulerDegreeVec(t.Rotation)
 
-		rollDegree := float32(-lot_config.RadianToDegree(float32(rollRadian)))
-		pitchDegree := float32(lot_config.RadianToDegree(float32(pitchRadian)))
+		rollDegree := float32(-vec[0])
+		pitchDegree := float32(vec[1])
 
 		if math.Abs(float64(rollDegree)) < 0.01 && math.Abs(float64(pitchDegree)) < 0.01 {
 			fmt.Printf("Roll and pitch degree are almost 0, stop after %d iterations: %f %f \n", iterations, rollDegree, pitchDegree)
@@ -973,8 +981,7 @@ func detectPitchDirection(c *Controller, limitSeconds int) error {
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		_, pitchRadian, _ := rToEuler(t.Rotation)
-		degree := float32(lot_config.RadianToDegree(float32(pitchRadian)))
+		degree := float32(rToEulerDegreeVec(t.Rotation)[1])
 
 		fmt.Printf("roll=% 5.2f, RV=% 6d , deg=% 5.1f telemetry: %s \n", pitchValue, pos.RV, degree, t)
 
