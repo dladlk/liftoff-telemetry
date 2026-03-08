@@ -177,7 +177,7 @@ type Telemetry struct {
 }
 
 func (t Telemetry) String() string {
-	return fmt.Sprintf("% 5d) %s %s", t.Index, t.Position, t.Velocity)
+	return fmt.Sprintf("% 5d) P: %s RPY: %s V: %s", t.Index, t.Position, rToEulerDegreeVec(t.Rotation), t.Velocity)
 }
 
 type TelemetryProvider interface {
@@ -582,7 +582,7 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 
 	if showDebugCalculation {
 		desiredAttitude := rToEulerDegreeVec(Rd)
-		fmt.Printf("2) Thrust, desired attitude and state: %f %s %s\n", thrust, desiredAttitude, c.state)
+		fmt.Printf("2) Thrust, desired attitude and state: %4.2f RPY: %s %s\n", thrust, desiredAttitude, c.state)
 	}
 
 	// 3) Map to ACRO sticks (rates + throttle)
@@ -672,7 +672,7 @@ func NewControllerConfig() ControllerConfig {
 	return cfg
 }
 
-const showDebugCalculation = false
+const showDebugCalculation = true
 
 func main() {
 	flag.Usage = func() {
@@ -715,7 +715,7 @@ func main() {
 
 	// When we run in debug, compilation takes enough time to switch to liftoff so no need to wait. When run built version - set sleepSecondsBeforeStart to 3 seconds
 	sleepSecondsBeforeStart := 0
-	desiredFront := 1
+	desiredFront := 5
 	desiredRight := 0
 	desiredAltitude := 5
 	maxTimeSeconds := 5
