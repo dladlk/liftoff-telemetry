@@ -235,7 +235,7 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 	// Telemetry returns quaternion in ANOTHER system then calculation uses, we should convert it
 	v1, v2, v3 := rToEuler(R)
 	//IMPORTANT: We receive positive degree for left roll and negative for right roll, change sign for it
-	R = EulerToR(-v3, v1, v2)
+	R = EulerToR(v3, v1, v2)
 
 	tel := Telemetry{
 		Index:    index,
@@ -669,7 +669,7 @@ func NewControllerConfig() ControllerConfig {
 			RateLimitPerTick: 0.05,
 		},
 		Signs: OutputSigns{
-			InvertRoll:  true,
+			InvertRoll:  false,
 			InvertPitch: true, // set true if forward stick should mean nose-down
 			InvertYaw:   false,
 		},
@@ -723,7 +723,7 @@ func main() {
 	sleepSecondsBeforeStart := 0
 	desiredFront := 0
 	desiredRight := 0
-	desiredAltitude := 10
+	desiredAltitude := 3
 	maxTimeSeconds := 10
 	doStartThrottleHoverDetection := false
 	doStartYawDirectionDetection := false
