@@ -107,3 +107,13 @@ func TestToInt16Signed(t *testing.T) {
 		})
 	}
 }
+
+func TestAttitudeAndThrustFromAccelYaw(t *testing.T) {
+	cfg := main.NewControllerConfig()
+	t.Run("Test", func(t *testing.T) {
+		a_c := main.Vec3{-13, 0.000, -9.9}
+		a_c = main.Vec3{1, 0.000, 0}
+		Rd, thrust := main.AttitudeAndThrustFromAccelYaw(a_c, cfg.G, 0, cfg.Mass)
+		t.Errorf("%f %s %s\n", thrust, main.RToEulerDegreeVec(Rd), Rd)
+	})
+}

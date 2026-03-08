@@ -19,7 +19,7 @@ import (
 type Vec3 [3]float64
 
 func (t Vec3) String() string {
-	return fmt.Sprintf("[% 6.2f % 6.2f % 6.2f]", t[0], t[1], t[2])
+	return fmt.Sprintf("[% 8.4f, % 8.4f, % 8.4f]", t[0], t[1], t[2])
 }
 
 type Mat3 [3][3]float64
@@ -119,7 +119,7 @@ func rToEuler(R Mat3) (roll, pitch, yaw float64) {
 }
 
 // Vec3 with (roll, pitch, yaw float64)
-func rToEulerDegreeVec(R Mat3) Vec3 {
+func RToEulerDegreeVec(R Mat3) Vec3 {
 	r, p, y := rToEuler(R)
 	return Vec3{
 		lot_config.RadianToDegree64(r),
@@ -179,7 +179,7 @@ type Telemetry struct {
 }
 
 func (t Telemetry) String() string {
-	return fmt.Sprintf("% 5d) P: %s RPY: %s V: %s", t.Index, t.Position, rToEulerDegreeVec(t.Rotation), t.Velocity)
+	return fmt.Sprintf("% 5d) P: %s RPY: %s V: %s", t.Index, t.Position, RToEulerDegreeVec(t.Rotation), t.Velocity)
 }
 
 type TelemetryProvider interface {
@@ -367,7 +367,7 @@ func (c *Controller) desiredAcceleration(position, velocity Vec3, sp Setpoint, d
 }
 
 // 2) From desired acceleration (a_c) and yaw (psi_d) to desired attitude (Rd) and thrust (T)
-func attitudeAndThrustFromAccelYaw(a_c Vec3, g float64, psiD float64, mass float64) (Rd Mat3, thrust float64) {
+func AttitudeAndThrustFromAccelYaw(a_c Vec3, g float64, psiD float64, mass float64) (Rd Mat3, thrust float64) {
 	gvec := Vec3{0, 0, -g}
 	accStar := sub(a_c, gvec)     // a_c - g
 	b3d := normalize(accStar)     // desired body z axis (world)
@@ -482,7 +482,7 @@ func (c *Controller) toAcroJoystick(R Mat3, sp Setpoint, Rd Mat3, T float64) Joy
 	omegaCmd := c.desiredBodyRates(R, Rd, yawCur, sp.PsiD)
 
 	if showDebugCalculation {
-		fmt.Printf("Desired body rates: %s cur yaw %f desired yaw %f\n", omegaCmd, yawCur, sp.PsiD)
+		fmt.Printf("   Desired body rates: %s cur yaw %f desired yaw %f\n", omegaCmd, yawCur, sp.PsiD)
 	}
 
 	// normalize to [-1..1]
@@ -584,10 +584,10 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 	}
 
 	// 2) Desired attitude from yaw and thrust direction
-	Rd, thrust := attitudeAndThrustFromAccelYaw(acceleration, c.cfg.G, sp.PsiD, c.cfg.Mass)
+	Rd, thrust := AttitudeAndThrustFromAccelYaw(acceleration, c.cfg.G, sp.PsiD, c.cfg.Mass)
 
 	if showDebugCalculation {
-		desiredAttitude := rToEulerDegreeVec(Rd)
+		desiredAttitude := RToEulerDegreeVec(Rd)
 		fmt.Printf("2) Desired thrust, attitude and state: %4.2f RPY: %s %s\n", thrust, desiredAttitude, c.state)
 	}
 
@@ -844,7 +844,7 @@ func detectYawDirection(c *Controller, limitSeconds int) error {
 		t, _, _ := c.tprov.ReadTelemetry()
 		fmt.Printf("yaw=% 5.2f, LH=% 6d  telemetry: %s \n", yawValue, pos.LH, t)
 
-		degree := float32(rToEulerDegreeVec(t.Rotation)[2])
+		degree := float32(RToEulerDegreeVec(t.Rotation)[2])
 
 		if clockWise {
 			if degree > float32(degLimit) {
@@ -911,7 +911,7 @@ func detectRollDirection(c *Controller, limitSeconds int) error {
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		degree := float32(-rToEulerDegreeVec(t.Rotation)[0])
+		degree := float32(-RToEulerDegreeVec(t.Rotation)[0])
 
 		fmt.Printf("roll=% 5.2f, RH=% 6d , deg=% 5.1f telemetry: %s \n", rollValue, pos.RH, degree, t)
 
@@ -941,7 +941,7 @@ func stabilizeRollPitchAngle(pos JoystickPosition, c *Controller) {
 	for {
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		vec := rToEulerDegreeVec(t.Rotation)
+		vec := RToEulerDegreeVec(t.Rotation)
 
 		rollDegree := float32(-vec[0])
 		pitchDegree := float32(vec[1])
@@ -989,7 +989,7 @@ func detectPitchDirection(c *Controller, limitSeconds int) error {
 		time.Sleep(500 * time.Millisecond)
 		t, _, _ := c.tprov.ReadTelemetry()
 
-		degree := float32(rToEulerDegreeVec(t.Rotation)[1])
+		degree := float32(RToEulerDegreeVec(t.Rotation)[1])
 
 		fmt.Printf("roll=% 5.2f, RV=% 6d , deg=% 5.1f telemetry: %s \n", pitchValue, pos.RV, degree, t)
 
