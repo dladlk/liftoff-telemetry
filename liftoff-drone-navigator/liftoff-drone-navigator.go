@@ -32,6 +32,8 @@ func add(a, b Vec3) Vec3         { return Vec3{a[0] + b[0], a[1] + b[1], a[2] + 
 func sub(a, b Vec3) Vec3         { return Vec3{a[0] - b[0], a[1] - b[1], a[2] - b[2]} }
 func mul(a Vec3, s float64) Vec3 { return Vec3{a[0] * s, a[1] * s, a[2] * s} }
 func dot(a, b Vec3) float64      { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] }
+
+// cross product - https://en.wikipedia.org/wiki/Cross_product
 func cross(a, b Vec3) Vec3 {
 	return Vec3{
 		a[1]*b[2] - a[2]*b[1],
@@ -339,7 +341,7 @@ func NewController(cfg ControllerConfig, t TelemetryProvider, s SetpointProvider
 //
 
 // 1) Outer (position) loop to desired world acceleration
-func (c *Controller) positionLoop(position, velocity Vec3, sp Setpoint, dt float64) (acceleration Vec3) {
+func (c *Controller) desiredAcceleration(position, velocity Vec3, sp Setpoint, dt float64) (acceleration Vec3) {
 	velocityDesired := sp.VelocityDesired
 	if !sp.HasVelocityDesired {
 		velocityDesired = Vec3{0, 0, 0}
@@ -479,6 +481,10 @@ func (c *Controller) toAcroJoystick(R Mat3, sp Setpoint, Rd Mat3, T float64) Joy
 	// desired body rates from attitude error
 	omegaCmd := c.desiredBodyRates(R, Rd, yawCur, sp.PsiD)
 
+	if showDebugCalculation {
+		fmt.Printf("Desired body rates: %s cur yaw %f desired yaw %f\n", omegaCmd, yawCur, sp.PsiD)
+	}
+
 	// normalize to [-1..1]
 	rhNorm := omegaCmd[0] / c.cfg.Rates.MaxRollRate
 	rvNorm := omegaCmd[1] / c.cfg.Rates.MaxPitchRate
@@ -571,10 +577,10 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 		fmt.Printf("INPUT: telemetry %s , setpoint pos: %s\n", tel, sp.PositionDesired)
 	}
 
-	acceleration := c.positionLoop(tel.Position, tel.Velocity, sp, c.cfg.Dt)
+	acceleration := c.desiredAcceleration(tel.Position, tel.Velocity, sp, c.cfg.Dt)
 
 	if showDebugCalculation {
-		fmt.Printf("1) Acceleration: %s\n", acceleration)
+		fmt.Printf("1) Desired acceleration: %s\n", acceleration)
 	}
 
 	// 2) Desired attitude from yaw and thrust direction
@@ -582,7 +588,7 @@ func CalculateJoysticksPosition(c *Controller, tel Telemetry, sp Setpoint) Joyst
 
 	if showDebugCalculation {
 		desiredAttitude := rToEulerDegreeVec(Rd)
-		fmt.Printf("2) Thrust, desired attitude and state: %4.2f RPY: %s %s\n", thrust, desiredAttitude, c.state)
+		fmt.Printf("2) Desired thrust, attitude and state: %4.2f RPY: %s %s\n", thrust, desiredAttitude, c.state)
 	}
 
 	// 3) Map to ACRO sticks (rates + throttle)
