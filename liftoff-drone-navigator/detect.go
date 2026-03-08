@@ -113,8 +113,6 @@ func detectRollDirection(c *Controller, limitSeconds int) error {
 		t, _, _ := c.tprov.ReadTelemetry()
 
 		degree := float32(RToEulerDegreeVec(t.Rotation)[0])
-		// IMPORTANT: We receive positive degree for left roll and negative for right roll, change sign for it
-		degree = -degree
 
 		fmt.Printf("roll=% 5.2f, RH=% 6d , deg=% 5.1f telemetry: %s \n", rollValue, pos.RH, degree, t)
 
@@ -211,7 +209,7 @@ func stabilizeRollPitchAngle(pos JoystickPosition, c *Controller) {
 
 		vec := RToEulerDegreeVec(t.Rotation)
 
-		rollDegree := float32(-vec[0])
+		rollDegree := float32(vec[0])
 		pitchDegree := float32(vec[1])
 
 		if math.Abs(float64(rollDegree)) < 0.01 && math.Abs(float64(pitchDegree)) < 0.01 {

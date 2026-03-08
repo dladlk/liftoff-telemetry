@@ -234,8 +234,8 @@ func DatagramToTelemetry(datagram *lot_config.Datagram, index int) Telemetry {
 
 	// Telemetry returns quaternion in ANOTHER system then calculation uses, we should convert it
 	v1, v2, v3 := rToEuler(R)
-	//fmt.Printf("%f %f %f\n", v1, v2, v3)
-	R = EulerToR(v3, v1, v2)
+	//IMPORTANT: We receive positive degree for left roll and negative for right roll, change sign for it
+	R = EulerToR(-v3, v1, v2)
 
 	tel := Telemetry{
 		Index:    index,
@@ -669,7 +669,7 @@ func NewControllerConfig() ControllerConfig {
 			RateLimitPerTick: 0.05,
 		},
 		Signs: OutputSigns{
-			InvertRoll:  false,
+			InvertRoll:  true,
 			InvertPitch: true, // set true if forward stick should mean nose-down
 			InvertYaw:   false,
 		},
@@ -721,15 +721,15 @@ func main() {
 
 	// When we run in debug, compilation takes enough time to switch to liftoff so no need to wait. When run built version - set sleepSecondsBeforeStart to 3 seconds
 	sleepSecondsBeforeStart := 0
-	desiredFront := 5
+	desiredFront := 0
 	desiredRight := 0
-	desiredAltitude := 5
-	maxTimeSeconds := 5
+	desiredAltitude := 10
+	maxTimeSeconds := 10
 	doStartThrottleHoverDetection := false
 	doStartYawDirectionDetection := false
-	doStartRollDirectionDetection := false
-	doStartPitchDirectionDetection := false
-	doStartOnly := false
+	doStartRollDirectionDetection := true
+	doStartPitchDirectionDetection := true
+	doStartOnly := true
 
 	desiredIncrement := Vec3{float64(desiredFront), float64(desiredRight), float64(desiredAltitude)} // move from first successful telemetry
 	positionDesired := add(startPosition, desiredIncrement)
@@ -768,7 +768,7 @@ func main() {
 		detectYawDirection(ctrl, 10)
 	}
 	if doStartRollDirectionDetection {
-		detectRollDirection(ctrl, 10)
+		detectRollDirection(ctrl, 17)
 	}
 	if doStartPitchDirectionDetection {
 		detectPitchDirection(ctrl, 17)
