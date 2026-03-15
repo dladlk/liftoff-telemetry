@@ -114,6 +114,10 @@ func TestAttitudeAndThrustFromAccelYaw(t *testing.T) {
 		a_c := main.Vec3{-13, 0.000, -9.9}
 		a_c = main.Vec3{1, 0.000, 0}
 		Rd, thrust := main.AttitudeAndThrustFromAccelYaw(a_c, cfg.G, 0, cfg.Mass)
-		t.Errorf("%f %s %s\n", thrust, main.RToEulerDegreeVec(Rd), Rd)
+		expected := "5.650259 [  0.0000,   5.8204,   0.0000] [[ 0.99  0.00  0.10][ 0.00  1.00  0.00][-0.10  0.00  0.99]]"
+		actual := fmt.Sprintf("%f %s %s", thrust, main.RToEulerDegreeVec(Rd), Rd)
+		if expected != actual {
+			t.Errorf("Expected: %s, actual: %s", expected, actual)
+		}
 	})
 }
